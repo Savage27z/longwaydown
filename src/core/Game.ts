@@ -91,6 +91,20 @@ export class Game {
     events.emit('state:change', { from, to: next });
   }
 
+  /**
+   * Dev/automation: simulate without rendering. Runs fixed steps and a light frame update every
+   * `frameEvery` steps (terrain streaming, origin shifts). Call repeatedly from async code so
+   * worker messages can arrive between chunks.
+   */
+  simulate(seconds: number, frameEvery = 10): void {
+    const dt = this.loop.fixedDt;
+    const steps = Math.round(seconds / dt);
+    for (let i = 0; i < steps; i++) {
+      this.fixedUpdate(dt);
+      if ((i + 1) % frameEvery === 0 && this.mode) this.mode.update(dt * frameEvery, dt * frameEvery, 1);
+    }
+  }
+
   private fixedUpdate(dt: number): void {
     if (this.state === 'playing' && this.mode) {
       this.mode.fixedUpdate(dt);

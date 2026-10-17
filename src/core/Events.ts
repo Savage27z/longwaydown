@@ -1,3 +1,5 @@
+import type { LandInfo } from '../vehicles/Vehicle';
+
 /** Typed event bus. Systems emit; UI/audio/fx listen. Nothing holds direct references across layers. */
 
 type Handler<T> = (payload: T) => void;
@@ -49,6 +51,11 @@ export interface GameEvents {
   'origin:shift': { dx: number; dy: number; dz: number };
   'settings:change': { key: string };
   'quality:change': { preset: string };
+  'player:takeoff': Record<string, never>;
+  'player:land': LandInfo;
+  'player:crash': { reason: string; penalty: number };
+  'player:respawn': { reason: string };
+  'camera:mode': { mode: 'chase' | 'helmet' };
 }
 
 export const events = new EventBus<GameEvents>();

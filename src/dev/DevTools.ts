@@ -3,6 +3,8 @@ import type { Game, GameMode } from '../core/Game';
 import type { QualityPreset } from '../config/graphics';
 import { StatsOverlay } from './StatsOverlay';
 import { PhysicsDebug } from './PhysicsDebug';
+import { AutoRider } from './AutoRider';
+import type { PlayMode } from '../core/PlayMode';
 
 /**
  * Dev tuning panel (lil-gui) + stats + physics debug. Only ever loaded through a dynamic
@@ -48,6 +50,15 @@ export class DevTools {
   attachMode(mode: GameMode): void {
     const tuning = mode.devTuning?.() ?? {};
     for (const [name, obj] of Object.entries(tuning)) this.addConfig(name, obj);
+    if ('player' in mode) {
+      const bot = new AutoRider(this.game, mode as PlayMode);
+      bot.attach();
+      (window as unknown as Record<string, unknown>).__bot = bot;
+      const f = this.folder('Auto rider');
+      f.add(bot, 'enabled').name('drive (real time)');
+      f.add(bot, 'lookAhead', 5, 60, 1);
+      f.add({ fastForward: () => void bot.run().then((r) => console.info('[AutoRider]', r)) }, 'fastForward');
+    }
   }
 
   /** Get or create a top-level folder. */

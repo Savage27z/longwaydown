@@ -58,3 +58,46 @@
 - Some feature edges (lips, cliff shelves) look jagged at 2 m resolution.
 - The tile→backdrop transition around 600 m is visible on large walls.
 - Rivers end abruptly where the carve fades out.
+
+## Phase 3: Bicycle + Character
+
+**What was built**
+- `models/ModelLoader.ts`: the single model entry point. Models are procedural by default. `registerGlb(id, url)` + `preloadModels()` swaps in a .glb, which must use the same node or bone names and `paint:*` / `slot:*` material names.
+- `models/procedural/character.ts` + `player/Character.ts`: low-poly rider with a pivot skeleton (hips, spine, chest, neck, head, shoulders, elbows, hands, hips, knees, feet).
+  - Poses are vehicle-local targets: hip placement, spine/chest/head angles, and hand/foot targets solved with analytic two-bone IK (`utils/ik.ts`).
+  - The character also supports procedural flail, fade, and recolouring by material slot.
+- `models/procedural/bicycle.ts` + `vehicles/Bicycle.ts`: the bike has spinning wheels and a head-tube steering animation.
+  - The crank turns while you pedal (W) and levels out when you coast. Pedals stay level.
+  - The mountain-bike variant has a compressing fork.
+  - The rider pedals, tucks at speed, stands when coasting fast, leans into turns, and does a "no-hander" (E in the air).
+- `vehicles/ArcadeVehicle.ts`: shared arcade ground physics, also the base for boards and skis in Phase 5.
+  - A rotation-locked Rapier sphere with two suspension rays and springs along the ground normal.
+  - Speed-preserving carving: velocity rotates toward the heading, limited by grip × surface. Skidding costs speed.
+  - Pedal propulsion that spins out around 36 km/h. Brakes. Per-surface rolling and soft-snow drag. Quadratic aero with a tuck. Soft top speed.
+  - Space hop. In the air, the arrows flip and spin, and there's a landing assist near the ground.
+  - Crashes on bad landing angles, hard impacts, sideways landings, or sudden speed loss against trees, rocks or structures.
+- `player/Ragdoll.ts`: "ragdoll-lite". The rider detaches into a tumbling capsule with flailing limbs, fades out, and respawns on the line about 2.1 s later. A 3 s penalty event is emitted for the Phase 4 timer.
+- `player/PlayerController.ts`: input → vehicle → pose, crash/respawn flow, and automatic reset when more than 450 m off course, fallen below the course or world, or stuck for 6 s. `snapshot()` is serializable for future ghosts.
+- `camera/ChaseCamera.ts`:
+  - Per-vehicle profiles. Smoothing is applied to the offset from the rider, so the camera never lags at speed.
+  - FOV widens with speed. Trauma shake on landings, crashes and rough surfaces.
+  - Mouse-drag and right-stick orbit that springs back after 1.5 s. Terrain clearance.
+  - C toggles a helmet cam (the head is hidden in first person).
+- `dev/AutoRider.ts`: a dev bot that rides the course line at full throttle, fast-forwarding headlessly in chunks.
+
+**Verified**
+- Typecheck, 18 tests (IK added) and build all pass.
+- The bot rode all of Snow Peak (19.59 km) in 16.9 simulated minutes (57 s wall time). Top speed was 103 km/h, with 59 jump landings and 2 crashes (one bad landing, one tree). It needed no out-of-bounds resets, and there were no console errors.
+- Crash → ragdoll → respawn, the helmet cam, origin shifts while riding, and finish-village streaming were all checked in the browser.
+
+**How to test**
+- `npm run dev`. W pedal (hold to tuck at speed), S brake, A/D steer, Space hop, arrow keys flip/spin in the air, E no-hander in the air, C helmet cam, R reset onto the line, drag to orbit.
+- Dev panel (`~`):
+  - "Bicycle" tunes every handling value live.
+  - "Fly cam" → `teleportToKm` drops you anywhere on the course.
+  - "Auto rider" → `fastForward` runs the whole course.
+
+**Known issues / not yet**
+- There is no HUD, timer, checkpoints or menus yet (Phase 4). R resets onto the line at your current position rather than a checkpoint.
+- No particles or audio yet.
+- The rider pose is approximate in places. The bike can't do manuals or wheelies (motorbike only, Phase 5).
