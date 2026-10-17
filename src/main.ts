@@ -15,8 +15,9 @@ async function boot(): Promise<void> {
 
   const dev = import.meta.env.DEV ? (await import('./dev/DevTools')).installDevTools(game) : null;
 
+  if (dev) game.onModeCreated = (m) => dev.attachMode(m);
   await game.init((p, msg) => loading.set(0.4 + p * 0.6, msg));
-  if (dev && game.mode) dev.attachMode(game.mode);
+  if (dev && game.mode && !game.play) dev.attachMode(game.mode);
   loading.hide();
   game.start();
 }

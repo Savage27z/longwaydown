@@ -60,8 +60,15 @@ export function gltfRig(source: THREE.Object3D, look: RiderLook): RigBinding | n
     m.frustumCulled = false;
   }
 
-  // Bind-pose world transforms of every bone, from the skin's inverse bind matrices.
+  // All parts share one skin in the pack: bind them to a single skeleton (one bone texture,
+  // one update per frame instead of one per part).
   const skeleton = meshes[0]!.skeleton;
+  for (const m of meshes.slice(1)) {
+    const own = m.skeleton;
+    m.bind(skeleton, m.bindMatrix);
+    if (own !== skeleton) own.dispose();
+  }
+  // Bind-pose world transforms of every bone, from the skin's inverse bind matrices.
   const bind = new Map<THREE.Object3D, Bind>();
   const m4 = new THREE.Matrix4();
   skeleton.bones.forEach((bone, i) => {
@@ -157,6 +164,7 @@ export function gltfRig(source: THREE.Object3D, look: RiderLook): RigBinding | n
     dispose() {
       root.removeFromParent();
       for (const m of materials) m.dispose();
+      skeleton.dispose();
       // Geometry is shared with the cached pack and stays alive.
     },
   };

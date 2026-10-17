@@ -297,3 +297,41 @@ export function waterPlane(width: number, length: number, color: string): Struct
   object.add(m);
   return { object, colliders: [], ownMaterials: [mat] };
 }
+
+/** Checkpoint gate: two inflatable-style posts and a banner reading "CHECKPOINT n". */
+export function checkpointGate(span: number, index: number, color: string): Structure {
+  const parts: THREE.BufferGeometry[] = [];
+  const half = span / 2;
+  for (const side of [-1, 1]) {
+    parts.push(paint(translate(new THREE.CylinderGeometry(0.55, 0.7, 7, 10), side * half, 3.5, 0), color));
+    parts.push(paint(translate(new THREE.SphereGeometry(0.6, 10, 6), side * half, 7.1, 0), '#ffffff'));
+  }
+  const object = new THREE.Group();
+  object.add(mesh(merge(parts)));
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 96;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, 512, 96);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'italic 900 56px Arial Black, Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`CHECKPOINT ${index}`, 256, 50);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
+  const banner = new THREE.Mesh(new THREE.PlaneGeometry(span, span * (96 / 512)), mat);
+  banner.position.y = 6.2;
+  banner.rotation.y = Math.PI;
+  object.add(banner);
+  return {
+    object,
+    colliders: [
+      { type: 'cylinder', halfHeight: 3.5, radius: 0.65, pos: [half, 3.5, 0] },
+      { type: 'cylinder', halfHeight: 3.5, radius: 0.65, pos: [-half, 3.5, 0] },
+    ],
+    ownMaterials: [mat],
+  };
+}

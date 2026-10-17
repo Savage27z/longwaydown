@@ -7,6 +7,7 @@ import { waterLevel } from './Features';
 import type { TerrainSampler } from './TerrainSampler';
 import {
   bridge,
+  checkpointGate,
   finishArch,
   house,
   kmSign,
@@ -74,6 +75,12 @@ export class CourseProps {
       const x = c.x[i]! - c.tz[i]! * off;
       const z = c.z[i]! + c.tx[i]! * off;
       add(x, h(x, z), z, headingAt(i), 0, () => kmSign(k + 1, (c.length - s) / 1000, primaryColor));
+    });
+
+    // Checkpoint gates across the line.
+    c.checkpoints.forEach((s, k) => {
+      const i = at(s);
+      add(c.x[i]!, h(c.x[i]!, c.z[i]!) - 0.3, c.z[i]!, headingAt(i), 0, () => checkpointGate(Math.min(c.hw[i]! * 2 - 6, 60), k + 1, '#1f8fff'));
     });
 
     // Features.

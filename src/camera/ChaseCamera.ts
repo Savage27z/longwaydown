@@ -33,6 +33,9 @@ const _up = new THREE.Vector3();
 export class ChaseCamera {
   mode: CameraView = 'chase';
   trauma = 0;
+  /** Settings: degrees added to every FOV, and inverted vertical orbit. */
+  fovOffset = 0;
+  invertY = false;
   private profile: CameraProfile = { ...CAMERA_PROFILES.bicycle };
   private yaw = 0;
   private orbitYaw = 0;
@@ -62,6 +65,18 @@ export class ChaseCamera {
     this.trauma = Math.min(1, this.trauma + amount);
   }
 
+  /** Cinematic orbit (intro / finish): keeps swinging around the rider until stopped. */
+  orbit(dt: number, speed: number, pitch = 0.3): void {
+    this.orbitYaw += speed * dt;
+    this.orbitPitch = damp(this.orbitPitch, pitch, 2, dt);
+    this.lastOrbit = this.time;
+  }
+
+  /** Stop any orbit and swing back behind the rider. */
+  release(): void {
+    this.lastOrbit = -10;
+  }
+
   /** Jump straight behind the rider (respawns, teleports). */
   snap(): void {
     this.primed = false;
@@ -85,12 +100,12 @@ export class ChaseCamera {
     let orbiting = false;
     if (inp.mouseDown && (inp.mouseDX !== 0 || inp.mouseDY !== 0)) {
       this.orbitYaw -= inp.mouseDX * CAMERA.mouseSensitivity;
-      this.orbitPitch = clamp(this.orbitPitch + inp.mouseDY * CAMERA.mouseSensitivity, -0.35, 1.0);
+      this.orbitPitch = clamp(this.orbitPitch + inp.mouseDY * CAMERA.mouseSensitivity * (this.invertY ? -1 : 1), -0.35, 1.0);
       orbiting = true;
     }
     if (allowStickOrbit && (inp.rightStick.x !== 0 || inp.rightStick.y !== 0)) {
       this.orbitYaw -= inp.rightStick.x * CAMERA.stickSpeed * dt;
-      this.orbitPitch = clamp(this.orbitPitch + inp.rightStick.y * CAMERA.stickSpeed * 0.6 * dt, -0.35, 1.0);
+      this.orbitPitch = clamp(this.orbitPitch + inp.rightStick.y * CAMERA.stickSpeed * 0.6 * dt * (this.invertY ? -1 : 1), -0.35, 1.0);
       orbiting = true;
     }
     if (orbiting) this.lastOrbit = this.time;
@@ -173,7 +188,7 @@ export class ChaseCamera {
   }
 
   private setFov(dt: number, target: number, max: number): void {
-    this.fov = damp(this.fov, Math.min(max, target), 3, dt);
+    this.fov = damp(this.fov, Math.min(max, target) + this.fovOffset, 3, dt);
     if (Math.abs(this.camera.fov - this.fov) > 0.01) {
       this.camera.fov = this.fov;
       this.camera.updateProjectionMatrix();

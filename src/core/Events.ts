@@ -1,4 +1,5 @@
 import type { LandInfo } from '../vehicles/Vehicle';
+import type { RunResults, RunState } from '../gameplay/Run';
 
 /** Typed event bus. Systems emit; UI/audio/fx listen. Nothing holds direct references across layers. */
 
@@ -56,6 +57,11 @@ export interface GameEvents {
   'player:crash': { reason: string; penalty: number };
   'player:respawn': { reason: string };
   'camera:mode': { mode: 'chase' | 'far' | 'first' };
+  'run:state': { state: RunState };
+  'run:countdown': { n: number };
+  'run:checkpoint': { index: number; count: number; time: number; delta: number | null };
+  'run:penalty': { seconds: number; reason: string };
+  'run:finish': { results: RunResults };
 }
 
 export const events = new EventBus<GameEvents>();

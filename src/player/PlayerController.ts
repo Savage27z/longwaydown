@@ -31,6 +31,10 @@ export class PlayerController {
   state: PlayerState = 'riding';
   /** Set by the run while the countdown is on (no throttle/steer). */
   frozen = false;
+  /** After the finish line: coast to a stop. */
+  autoBrake = false;
+  /** Where automatic resets (off course, stuck, fell) put the rider; defaults to current progress. */
+  resetS: (() => number) | null = null;
   /** Dev/AI hook: rewrite the input after it is read from devices. */
   inputOverride: ((input: typeof this.input) => void) | null = null;
   /** Lets the camera hide the head in helmet view. */
@@ -134,6 +138,12 @@ export class PlayerController {
     i.jumpHeld = inp.isDown('jump');
     i.boost = live && inp.isDown('boost');
     i.trick = inp.isDown('trick');
+    if (this.autoBrake) {
+      i.throttle = 0;
+      i.brake = 0.5;
+      i.boost = false;
+      i.jumpPressed = false;
+    }
     this.inputOverride?.(i);
   }
 
@@ -167,13 +177,13 @@ export class PlayerController {
     const ground = this.world.sampler.heightAt(_g.x, _g.z);
     const courseY = this.world.course.y[Math.min(this.world.course.count - 1, p.idx)]!;
     if (p.d > RIDING.outOfBoundsDistance || _g.y < courseY - RIDING.fallBelowCourse || _g.y < ground - 6) {
-      this.respawnAt(p.s, RIDING.respawnSpeed, 'out of bounds');
+      this.respawnAt(this.resetS?.() ?? p.s, RIDING.respawnSpeed, 'out of bounds');
       return;
     }
     const tel = this.vehicle.telemetry;
-    if (tel.speed < RIDING.stuckSpeed && !this.frozen) this.stuckTimer += dt;
+    if (tel.speed < RIDING.stuckSpeed && !this.frozen && !this.autoBrake) this.stuckTimer += dt;
     else this.stuckTimer = 0;
-    if (this.stuckTimer > RIDING.stuckTime) this.respawnAt(p.s + 2, RIDING.respawnSpeed, 'stuck');
+    if (this.stuckTimer > RIDING.stuckTime) this.respawnAt(this.resetS?.() ?? p.s + 2, RIDING.respawnSpeed, 'stuck');
   }
 
   update(dt: number, alpha: number): void {

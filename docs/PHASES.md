@@ -138,3 +138,42 @@
 - Pedalling matters: propulsion now fades out toward about 86 km/h instead of 54 km/h, so W always adds speed (about 83 km/h on the flat).
 - Seated pedalling has hip rock and a shoulder counter-sway. Boost is an out-of-the-saddle sprint: the bike rocks with each stroke while the rider's torso counters it.
 - The bike is fitted to the new rider: the seatpost is 9 cm taller for the 0.94 m legs, and a tall stem plus riser bar brings the bars up and back for the short arms. The riding posture leans further forward.
+
+## Phase 4: Run Loop
+
+**What was built**
+- `core/Game.ts`: the state machine (loading → menu → playing ⇄ paused → finished), driven by menu actions.
+  - The menu background is a slow flyover of the course.
+  - Switching maps shows the loading screen and fully disposes the old world.
+  - Physics only steps while playing or finished.
+  - The first ride shows the controls screen before the countdown.
+- `core/Save.ts`: a versioned localStorage save with a migration chain, defaults merged into older saves, and corruption-safe loading. It stores settings (quality, volumes, FOV, invert Y, key and pad bindings), best times with checkpoint splits, finishes, distance, unlocks, look and the first-play flag. `?unlockall` unlocks everything for testing and is never written to the save.
+- `gameplay/Run.ts`:
+  - Stages: intro (an orbit around the rider at the start gate, skippable with Space), a 3-2-1-GO countdown with the rider held, the race clock, then the finish. The finish brings 2.2 s of slow motion, an orbit camera and auto-braking.
+  - Crash penalties are +3 s. Run stats: top speed, biggest air (time and height), crashes, distance.
+  - Time Freeze support is ready for Phase 6.
+- `gameplay/Checkpoints.ts`: checkpoints trigger on course progress, every 2 km. Each records a split and its delta against your best. R, falling off a cliff, going out of bounds or getting stuck returns you to the last checkpoint; crashes respawn you where you fell. Blue "CHECKPOINT n" gates now stand on the course.
+- `ui/HUD.ts`:
+  - Race timer with penalty and split-delta flashes, and your best time.
+  - A whole-course elevation strip: travelled part highlighted, checkpoint ticks that light up as you pass them, finish flag and rider dot.
+  - "km to go", altitude, a vehicle chip with icon, and a big speedometer.
+  - Boost and flight meters (shown when relevant), plus countdown, checkpoint and finish banners.
+- `ui/Menus.ts`, `MapSelect.ts`, `SettingsScreen.ts`:
+  - Main menu (Play, Customize — Phase 8, Settings, Controls, Credits).
+  - Map select with a course preview, length, drop, best time and a lock ("finish Snow Peak to unlock").
+  - Pause menu: resume, respawn, restart, settings, controls, quit.
+  - Results: time, NEW RECORD badge, delta vs best, distance, top speed, biggest air, trick score, pickups, crashes, then ride again / next map / menu.
+  - Settings: quality preset, FOV, three volume sliders, invert Y, and live keyboard and gamepad rebinding.
+
+**Verified**
+- Typecheck, 22 tests (Run lifecycle, checkpoints and penalties, Time Freeze, Save persistence, defaults and corruption) and build all pass.
+- In the browser: menu → map select → intro → countdown → ride → checkpoint → R respawn → finish → results → next map → pause/settings all work.
+- Five consecutive map switches leave memory flat: textures 5, geometries about 130, heap back to about 110 MB.
+- Fixed while testing: each rider part had its own skeleton and bone texture, leaking 13 textures per map switch. Parts now share one skeleton.
+
+**How to test:** run `npm run dev` → Play → Snow Peak. Esc pauses, R returns to the last checkpoint, Space skips the intro. Finish Snow Peak to unlock Green Ridge, or add `?unlockall` to the URL.
+
+**Known issues**
+- The start/finish cinematics are simple orbits for now (the Phase 10 cinematic pass).
+- Menus are mouse-driven; gamepad menu navigation comes in Phase 10.
+- Customize is a placeholder until Phase 8.

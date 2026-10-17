@@ -47,14 +47,22 @@ export class DevTools {
   }
 
   /** Expose the active mode's tuning objects. */
+  private modeFolders: string[] = [];
+
   attachMode(mode: GameMode): void {
+    for (const name of this.modeFolders) this.removeFolder(name);
+    this.modeFolders = [];
     const tuning = mode.devTuning?.() ?? {};
-    for (const [name, obj] of Object.entries(tuning)) this.addConfig(name, obj);
+    for (const [name, obj] of Object.entries(tuning)) {
+      this.addConfig(name, obj);
+      this.modeFolders.push(name);
+    }
     if ('player' in mode) {
       const bot = new AutoRider(this.game, mode as PlayMode);
       bot.attach();
       (window as unknown as Record<string, unknown>).__bot = bot;
       const f = this.folder('Auto rider');
+      this.modeFolders.push('Auto rider');
       f.add(bot, 'enabled').name('drive (real time)');
       f.add(bot, 'lookAhead', 5, 60, 1);
       f.add({ fastForward: () => void bot.run().then((r) => console.info('[AutoRider]', r)) }, 'fastForward');
