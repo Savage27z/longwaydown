@@ -26,6 +26,7 @@ export class Motorbike extends ArcadeVehicle {
 
   constructor(physics: PhysicsWorld, state: TransferState, paint: ModelOptions = { primary: '#ffd23f', secondary: '#1b2b40' }) {
     super('motorbike', physics, state);
+    this.leanFactor = 0.75;
     this.m = createModel('vehicle:motorbike', paint);
     this.model.add(this.m);
     const axis = this.m.getObjectByName('steer')?.userData.axis as THREE.Vector3 | undefined;

@@ -46,7 +46,7 @@ describe('flight model', () => {
   });
 
   it('levels its wings and returns to the neutral attitude when the stick is released', () => {
-    const f = FLIGHT.jet;
+    const f = FLIGHT.flyingCar;
     const model = new FlightModel(() => f);
     const v = new THREE.Vector3(0, 0, 40);
     const hard = { ...emptyInput(), steer: 1, brake: 1 };
@@ -59,7 +59,7 @@ describe('flight model', () => {
   });
 
   it('turns toward the stick (right = negative heading change)', () => {
-    const right = fly('jet', VEHICLES.jet.aero, 2, { ...emptyInput(), steer: 1 });
+    const right = fly('flyingCar', VEHICLES.flyingCar.aero, 2, { ...emptyInput(), steer: 1 });
     expect(right.heading).toBeLessThan(-0.3);
   });
 

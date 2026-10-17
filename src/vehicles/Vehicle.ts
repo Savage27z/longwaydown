@@ -85,7 +85,7 @@ export interface VehicleTelemetry {
   boosting: boolean;
   /** 0..1 flight/fuel meter for flying vehicles, -1 when not applicable. */
   flightMeter: number;
-  /** In powered/gliding flight (hover car, jet). */
+  /** In powered/gliding flight (hover car, wingsuit). */
   flying: boolean;
 }
 

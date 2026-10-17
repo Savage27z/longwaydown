@@ -333,3 +333,50 @@ The direction changed after the second Phase 5 check: 8-rider races (bots now, o
 - **Tests:** 45 total, adding launch-edge flatness and drop, first-checkpoint position, wingsuit glide ratio and speed, dive/flare, auto-level, stall and terrain assists, and the wheel's altitude and on-foot rules.
 
 **Not done yet:** bots and 8-rider races (Step 4), then CC0 vehicle art and the Volt Roadster (Step 5).
+
+## Overhaul A+B: a real downhill trail, Riders Republic–style controls and camera
+Feedback: "everything feels off" against **Riders Republic**: controls, looks, physics, no fun, no people, the map doesn't go down properly, and drop the jet. Plan: A+B (this) → feel check → C+D (looks, crowds) → E (bot races).
+
+**A — The trail and the descent**
+- **A groomed trail along the whole course**, about 9 m wide (`TerrainSampler.heightWith`):
+  - Carved 0.45 m in, with bumps smoothed out.
+  - Banked berms in turns (cross-slope from course curvature, up to 0.35), with the outside of the turn higher.
+  - Raised lips along both edges.
+  - Its own fast, grippy `trail` surface: groomed snow on Snow Peak, dirt on Green Ridge. Icy sections use an icy trail.
+  - Off the trail is slower powder or rough ground. Marker poles stand along the trail edges every 24 m.
+- **Always downhill:**
+  - Grade noise can't drop below 65% of a section's grade.
+  - The flat frozen lake became **Frozen Falls** (0.32 grade, ice drops and kickers).
+  - River Valley and Farmland go to 0.18–0.2, and finishes to 0.15.
+  - Rollers are long and gentle, so they never go uphill.
+  - Tests check that every 40 m along the line is lower than the last, outside jumps.
+- **Narrower corridors** (45–90 m instead of 60–200 m), and **trees line the trail**: in forest sections they start 2 m past the trail shoulder, plus a loose band along open sections.
+- **Treeline fix:** the biome treeline, lowland and snowline bands are now fractions of each map's own descent. The higher summits had pushed whole forests above the old absolute treeline, which is why the map looked empty. Rocks are never on the trail.
+
+**B — Controls, physics, camera**
+- **Steering:** the keyboard ramp goes 7/s → 22/s and sticks aren't ramped at all. Turn rates and grip are up for bikes, the motorbike and the buggy.
+- **Weight:** air gravity is 1.35× (about 2 g effective), and crests hold at speed again (crest stick 8).
+- **Jumps:** lips are 1.6 m (were 3 m) with flatter launches, kickers 1.3 m, gaps 2 m. The hop is quicker (6.2 m/s). Landing alignment only in the last 4 m.
+- **Speed follows the slope** instead of sitting at the cap: about twice the aero drag, a firmer soft cap, and lower top speeds (bikes about 115 km/h, boost 145). Bot medians:
+
+  | Vehicle | Section | Median speed |
+  |---|---|---|
+  | MTB | Powder Fields (steep) | 119 km/h |
+  | MTB | Forest | 101 km/h |
+  | Snowboard | Switchbacks | 96 km/h |
+  | Skis | — | 117 km/h |
+  | Buggy | — | 146 km/h |
+  | Motorbike | — | 139 km/h |
+
+- **Airs:** average 0.6–1.3 s depending on vehicle and slope (were up to 2.4 s). No crashes in the bot runs.
+- **Bike lean:** bikes show 75% of the physical lean.
+- **Camera** (Riders Republic–style):
+  - Low and close (3.6 m back, 1.25 m up), with tight follow and yaw (14/s), so it never trails your steering.
+  - It rides partly up-slope and aims ahead down the hill (slope follow 0.45).
+  - Other vehicles' cameras were brought closer too.
+- **Jet removed** everywhere; the wingsuit covers flying.
+- **Bug fix (pre-existing):** a long respawn (R, checkpoints) could land before that area's terrain collider streamed in, so the rider fell through the world and was respawned in a loop. Respawned riders are now held in place until the ground exists (max 4 s). The held position follows floating-origin shifts.
+
+**Tests:** 53, adding the trail's sink and smoothness, berms banking outward, always-downhill, forest trees beside but never on the trail, and the wheel without the jet.
+
+**Known:** the trail colour band is subtle in shade; trail textures and decals come with Step C (looks). Crowds are Step D. The CC0 nature kit (99 MB) is waiting for your download approval in Step C.

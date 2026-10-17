@@ -3,7 +3,6 @@ import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { Bicycle } from './Bicycle';
 import { Buggy } from './Buggy';
 import { FlyingCar } from './FlyingCar';
-import { Jet } from './Jet';
 import { Motorbike } from './Motorbike';
 import { MountainBike } from './MountainBike';
 import { OnFoot } from './OnFoot';
@@ -25,8 +24,6 @@ export function createVehicle(id: VehicleId, physics: PhysicsWorld, state: Trans
       return new Buggy(physics, state);
     case 'flyingCar':
       return new FlyingCar(physics, state);
-    case 'jet':
-      return new Jet(physics, state);
     case 'snowboard':
       return new Snowboard(physics, state);
     case 'skis':

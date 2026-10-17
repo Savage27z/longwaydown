@@ -7,11 +7,15 @@ export interface BiomeDef {
   surfaceColors: Record<SurfaceId, string>;
   /** Steep-rock color and the tint that thin snow / dry grass fades toward at low altitude. */
   lowlandTint: string;
-  lowlandBelow: number;
-  /** Snow caps above this elevation (alpine biome). */
-  snowlineAbove: number;
+  /**
+   * Elevation bands as fractions of the map's descent (0 = summit, 1 = finish), so they follow
+   * each map's own summit and drop: lowland colours below lowlandFrac, snow caps above
+   * snowlineFrac (-1 = none), trees below treelineFrac.
+   */
+  lowlandFrac: number;
+  snowlineFrac: number;
   forestTint: string;
-  treeline: number;
+  treelineFrac: number;
   sky: {
     zenith: string;
     horizon: string;
@@ -43,12 +47,13 @@ export const BIOMES: Record<BiomeId, BiomeDef> = {
       mud: '#6c5a47',
       gravel: '#9a9690',
       water: '#5b8fb0',
+      trail: '#a9bdd4',
     },
     lowlandTint: '#b9c2b0',
-    lowlandBelow: 1300,
-    snowlineAbove: 99999,
+    lowlandFrac: 0.8,
+    snowlineFrac: -1,
     forestTint: '#33503f',
-    treeline: 2900,
+    treelineFrac: 0.3,
     sky: {
       zenith: '#2a66b3',
       horizon: '#c9def2',
@@ -78,12 +83,13 @@ export const BIOMES: Record<BiomeId, BiomeDef> = {
       mud: '#6d5038',
       gravel: '#aba596',
       water: '#4f8db3',
+      trail: '#b88a5c',
     },
     lowlandTint: '#8fb85a',
-    lowlandBelow: 900,
-    snowlineAbove: 3550,
+    lowlandFrac: 0.86,
+    snowlineFrac: 0.08,
     forestTint: '#2f5a2c',
-    treeline: 2800,
+    treelineFrac: 0.22,
     sky: {
       zenith: '#4a86cf',
       horizon: '#f2dcc0',

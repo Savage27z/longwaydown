@@ -8,7 +8,7 @@ const _axis = new THREE.Vector3();
 const _e = new THREE.Euler();
 
 /**
- * Arcade flight shared by every flyer (hover car, jet, wingsuit). Attitude control rather than
+ * Arcade flight shared by every flyer (hover car, wingsuit). Attitude control rather than
  * rate control: the stick commands a nose angle and a bank, and both settle back to neutral
  * when released, so you can't end up in an unrecoverable dive by holding a key too long.
  *
@@ -78,7 +78,7 @@ export class FlightModel {
       const over = heightAboveGround - f.ceiling;
       v.y -= Math.min(15, over * 0.6) * dt * 4;
     }
-    // Low gliding recharges (jet): only while not thrusting.
+    // Low gliding recharges the meter (when configured): only while not thrusting.
     if (f.lowGlideRecharge > 0 && !this.thrusting && heightAboveGround < f.lowGlideHeight) {
       this.meter = Math.min(1, this.meter + f.lowGlideRecharge * dt);
     }

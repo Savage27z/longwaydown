@@ -8,6 +8,7 @@ import { events } from '../core/Events';
 import type { Game } from '../core/Game';
 import { ProgressTracker } from '../world/CourseQuery';
 import type { World } from '../world/World';
+import { GROUND_QUERY } from '../physics/PhysicsWorld';
 import { createVehicle } from '../vehicles/factory';
 import { swapVehicle } from '../vehicles/VehicleSwitcher';
 import { defaultMods, emptyInput, type TransferState, type Vehicle, type VehicleContext, type VehicleSnapshot } from '../vehicles/Vehicle';
@@ -59,6 +60,9 @@ export class PlayerController {
   private offShift: () => void;
   private simTime = 0;
   private steerSmooth = 0;
+  /** After a respawn: hold the rider in place until the ground's collider has streamed in. */
+  private spawnHold: TransferState | null = null;
+  private spawnWait = 0;
   /** Pop-in animation after a switch (0..1, 1 = done). */
   private popT = 1;
 
@@ -77,6 +81,7 @@ export class PlayerController {
     this.offShift = events.on('origin:shift', ({ dx, dy, dz }) => {
       this.vehicle.shiftOrigin(dx, dy, dz);
       this.ragdoll?.shiftOrigin(dx, dy, dz);
+      this.spawnHold?.position.set(this.spawnHold.position.x - dx, this.spawnHold.position.y - dy, this.spawnHold.position.z - dz);
     });
   }
 
@@ -169,7 +174,10 @@ export class PlayerController {
     if (this.onPlateau(sClamped) && this.vehicle.id !== 'onFoot') this.switchTo('onFoot', { silent: true });
     // A wingsuit can't stand on the ground: respawn on the ground vehicle instead.
     else if (!this.onPlateau(sClamped) && (this.vehicle.id === 'wingsuit' || this.vehicle.id === 'onFoot')) this.switchTo(this.landingVehicle(), { silent: true });
-    this.vehicle.place(this.spawnState(sClamped, speed));
+    const spawn = this.spawnState(sClamped, speed);
+    this.vehicle.place(spawn);
+    this.spawnHold = spawn;
+    this.spawnWait = RIDING.spawnGroundWait;
     this.motion.reset();
     this.stuckTimer = 0;
     events.emit('player:respawn', { reason });
@@ -192,11 +200,14 @@ export class PlayerController {
     const live = !this.frozen;
     i.throttle = live ? inp.value('accelerate') : 0;
     i.brake = live ? inp.value('brake') : 1;
-    // Ramp steering so digital keys feel analog (and sticks don't twitch).
+    // Keys get a very short ramp so they don't twitch; analog sticks go straight through.
     const raw = live ? inp.axis('steerLeft', 'steerRight') : 0;
-    const rising = Math.abs(raw) > Math.abs(this.steerSmooth) && Math.sign(raw) === Math.sign(this.steerSmooth || raw);
-    const rate = (rising ? RIDING.steerRise : RIDING.steerFall) / 60;
-    this.steerSmooth += Math.max(-rate, Math.min(rate, raw - this.steerSmooth));
+    if (inp.lastDevice === 'gamepad') this.steerSmooth = raw;
+    else {
+      const rising = Math.abs(raw) > Math.abs(this.steerSmooth) && Math.sign(raw) === Math.sign(this.steerSmooth || raw);
+      const rate = (rising ? RIDING.steerRise : RIDING.steerFall) / 60;
+      this.steerSmooth += Math.max(-rate, Math.min(rate, raw - this.steerSmooth));
+    }
     i.steer = this.steerSmooth;
     i.pitch = inp.axis('pitchBack', 'pitchForward');
     i.spin = inp.axis('spinLeft', 'spinRight');
@@ -213,8 +224,22 @@ export class PlayerController {
     this.inputOverride?.(i);
   }
 
+  /** Terrain collider present under a (local) point? */
+  private groundReady(p: THREE.Vector3): boolean {
+    return this.game.physics.raycast(p.x, p.y + 3, p.z, 0, -1, 0, 12, GROUND_QUERY, this.vehicle.body) !== null;
+  }
+
   fixedUpdate(dt: number): void {
     this.simTime += dt;
+    // Long respawns can land before the terrain there has colliders: wait for the ground.
+    if (this.spawnHold && this.state === 'riding') {
+      this.spawnWait -= dt;
+      if (this.groundReady(this.spawnHold.position) || this.spawnWait <= 0) this.spawnHold = null;
+      else {
+        this.vehicle.place(this.spawnHold);
+        return;
+      }
+    }
     if (this.state === 'riding') {
       this.readInput();
       this.vehicle.fixedUpdate(dt, this.input, this.ctx);
@@ -232,7 +257,7 @@ export class PlayerController {
       const gravity = -WORLD.gravity * v.body.gravityScale();
       this.motion.step(dt, v.id, v.body.linvel(), v.renderQuaternion(_q), gravity, tel.grounded, SURFACE_PHYSICS[tel.surface].rough, tel.speed);
       this.wingsuitRules();
-      if (this.state === 'riding') this.checkResets(dt);
+      if (this.state === 'riding' && !this.spawnHold) this.checkResets(dt);
     } else if (this.ragdoll) {
       this.ragdoll.afterStep(dt);
       this.crashTimer += dt;

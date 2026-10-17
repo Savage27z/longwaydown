@@ -204,10 +204,11 @@ export abstract class ArcadeVehicle extends Vehicle {
     const aeroK = s.aero * (this.tuck ? s.tuckAero : 1);
     v.multiplyScalar(Math.max(0, 1 - aeroK * speed * dt));
     const top = (this.telemetry.boosting ? s.boostTopSpeed : s.topSpeed) * mods.topSpeedMul;
-    if (speed > top) v.multiplyScalar(1 - Math.min(0.05, (speed - top) * 0.03 * dt));
+    if (speed > top) v.multiplyScalar(1 - Math.min(0.08, (speed - top) * 0.12 * dt));
 
     this.body.setLinvel(v, true);
-    this.body.setGravityScale((this.gravityOverride ?? s.gravityScale) * mods.gravityMul, true);
+    const airMul = grounded ? 1 : RIDING.airGravityMul;
+    this.body.setGravityScale((this.gravityOverride ?? s.gravityScale * airMul) * mods.gravityMul, true);
 
     // --- Bookkeeping ---
     this.grounded = grounded;
@@ -267,7 +268,7 @@ export abstract class ArcadeVehicle extends Vehicle {
     return this.mount.worldToLocal(out);
   }
 
-  /** Flight hook: return true to replace the default air step (flying car, jet). */
+  /** Flight hook: return true to replace the default air step (hover car, wingsuit). */
   protected flightStep(_dt: number, _input: VehicleInput, _ctx: VehicleContext, _v: THREE.Vector3): boolean {
     return false;
   }

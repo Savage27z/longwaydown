@@ -42,6 +42,10 @@ export class TerrainSampler {
   private kp: KernelPoint;
   private surfaceLinear: [number, number, number][];
   private lowland: [number, number, number];
+  /** Absolute elevation bands for this map (from the biome's fractions). */
+  private lowlandBelow: number;
+  private snowlineAbove: number;
+  private treeline: number;
   private forestTint: [number, number, number];
   private rockLinear: [number, number, number];
   private snowLinear: [number, number, number];
@@ -65,6 +69,11 @@ export class TerrainSampler {
     const lin = (hex: string): [number, number, number] => hexToRgb(hex).map(srgbToLinear) as [number, number, number];
     this.surfaceLinear = SURFACES.map((s) => lin(this.biome.surfaceColors[s]));
     this.lowland = lin(this.biome.lowlandTint);
+    // Elevation bands follow this map's own summit and drop.
+    const band = (frac: number) => (frac < 0 ? Infinity : this.map.summitElevation - frac * this.map.totalDrop);
+    this.lowlandBelow = band(this.biome.lowlandFrac);
+    this.snowlineAbove = this.biome.snowlineFrac < 0 ? Infinity : band(this.biome.snowlineFrac);
+    this.treeline = band(this.biome.treelineFrac);
     this.forestTint = lin(this.biome.forestTint);
     this.rockLinear = lin(this.biome.rock);
     this.snowLinear = lin(this.biome.surfaceColors.powder);
@@ -142,6 +151,11 @@ export class TerrainSampler {
     return r * r;
   }
 
+  /** 1 on the groomed trail, fading to 0 across its shoulders. */
+  trailWeight(d: number): number {
+    return 1 - smoothstep(TERRAIN.trailHalfWidth, TERRAIN.trailHalfWidth + TERRAIN.trailShoulder, d);
+  }
+
   heightAt(x: number, z: number): number {
     return this.heightWith(x, z, this.fieldsAt(x, z, this.tmpFields));
   }
@@ -154,6 +168,15 @@ export class TerrainSampler {
     let h = F.E;
     const dc = Math.min(F.d, F.hw);
     h += (T.halfPipe * dc * dc * flatK) / Math.max(F.hw, 1);
+    // The groomed trail: carved in and banked into turns (the outside of a turn sits higher).
+    const trailK = this.trailWeight(F.d);
+    if (trailK > 0) {
+      const curv = this.course.curvature[clamp(Math.round(F.idx), 0, this.course.count - 1)]!;
+      const bank = clamp(curv * T.bermGain, -T.bermMax, T.bermMax);
+      h += (-T.trailDepth - F.lat * bank) * trailK;
+    }
+    const lipD = (F.d - T.trailHalfWidth - 1.4) / 1.3;
+    if (lipD > -3 && lipD < 3) h += T.trailLip * Math.exp(-lipD * lipD) * flatK;
     if (F.walls >= 0) {
       const q = dOut / T.wallLength;
       h += F.walls * (T.wallLinear * dOut + T.wallHeight * (1 - Math.exp(-q * q)));
@@ -174,7 +197,7 @@ export class TerrainSampler {
     if (F.bumps > 0 && flatK > 0) {
       const inC = 1 - smoothstep(F.hw - 6, F.hw + 10, F.d);
       const n = this.nBump(x / T.bumpScale, z / T.bumpScale) * T.bumpAmp + this.nBump(x / T.bumpDetailScale + 31, z / T.bumpDetailScale) * T.bumpDetailAmp;
-      h += F.bumps * flatK * n * (0.35 + 0.65 * inC);
+      h += F.bumps * flatK * n * (0.35 + 0.65 * inC) * (1 - 0.92 * trailK);
     }
     // Behind the start the summit falls away.
     const fwd = (x - this.startX) * this.course.fallX + (z - this.startZ) * this.course.fallZ;
@@ -213,9 +236,11 @@ export class TerrainSampler {
   surfaceWith(x: number, z: number, F: CourseFields, h: number, slope: number): number {
     const water = this.waterAt(x, z);
     if (water !== null && h < water + 0.05) return SURFACE_INDEX.water;
-    if (slope > TERRAIN.rockSlope) return SURFACE_INDEX.rock;
     const secIdx = this.course.section[clamp(Math.round(F.idx), 0, this.course.count - 1)]!;
     const sec = this.map.sections[secIdx]!;
+    // The groomed trail, with a slightly ragged edge.
+    if (F.d < TERRAIN.trailHalfWidth + 0.8 + this.nPatch(x / 9, z / 9) * 0.7) return SURFACE_INDEX[sec.trailSurface ?? 'trail'];
+    if (slope > TERRAIN.rockSlope) return SURFACE_INDEX.rock;
     const edge = F.hw + this.nPatch(x / 35, z / 35) * 6;
     if (F.d < edge) {
       const r = clamp((this.nPatch(x / 55 + 100, z / 55) * 0.5 + 0.5) * 0.85 + (this.nPatch(x / 9, z / 9) * 0.5 + 0.5) * 0.15, 0, 0.9999);
@@ -260,14 +285,14 @@ export class TerrainSampler {
       b += (this.forestTint[2] - b) * forestShade;
     }
     // Thinning snow / lowland colour at low altitude (off the line).
-    const low = smoothstep(this.biome.lowlandBelow + 250, this.biome.lowlandBelow - 250, h) * smoothstep(0, 20, dOut) * 0.75;
+    const low = smoothstep(this.lowlandBelow + 250, this.lowlandBelow - 250, h) * smoothstep(0, 20, dOut) * 0.75;
     if (low > 0 && surface !== SURFACE_INDEX.rock && surface !== SURFACE_INDEX.water) {
       r += (this.lowland[0] - r) * low;
       g += (this.lowland[1] - g) * low;
       b += (this.lowland[2] - b) * low;
     }
     // Snow caps on high alpine peaks.
-    const cap = smoothstep(this.biome.snowlineAbove - 150, this.biome.snowlineAbove + 150, h + this.nPatch(x / 90, z / 90) * 80) * (1 - smoothstep(0.9, 1.4, slope));
+    const cap = smoothstep(this.snowlineAbove - 150, this.snowlineAbove + 150, h + this.nPatch(x / 90, z / 90) * 80) * (1 - smoothstep(0.9, 1.4, slope));
     if (cap > 0) {
       r += (this.snowLinear[0] - r) * cap;
       g += (this.snowLinear[1] - g) * cap;
@@ -288,15 +313,20 @@ export class TerrainSampler {
   /** Tree density 0..1 at a point (before the graphics density multiplier). */
   treeDensity(x: number, z: number, F: CourseFields, h: number, slope: number): number {
     if (slope > 0.85) return 0;
-    const reach = F.hw * (1 - 0.35 * F.forest);
-    const off = smoothstep(reach - 4, reach + 10, F.d);
+    // Trees close in on the trail (forest sections become forest runs), never on it.
+    const edge = TERRAIN.trailHalfWidth + TERRAIN.trailShoulder + TERRAIN.trailClearance;
+    const off = smoothstep(edge, edge + 5, F.d);
     const patch = smoothstep(-0.35, 0.45, this.nPatch(x / 140 + 50, z / 140 - 20));
-    const line = 1 - smoothstep(this.biome.treeline - 200, this.biome.treeline + 200, h);
-    return clamp(F.forest * off * (0.35 + 0.65 * patch) * line + 0.015 * off * line, 0, 1);
+    const line = 1 - smoothstep(this.treeline - 200, this.treeline + 200, h);
+    // A loose band of trees along the trail even in open sections: something to rush past.
+    const band = smoothstep(edge, edge + 3, F.d) * (1 - smoothstep(edge + 14, edge + 30, F.d));
+    return clamp(F.forest * off * (0.35 + 0.65 * patch) * line + (0.015 * off + 0.07 * band) * line, 0, 1);
   }
 
   rockDensity(F: CourseFields, slope: number): number {
-    const off = 0.25 + 0.75 * smoothstep(F.hw - 5, F.hw + 25, F.d);
+    // Never on the trail; scattered along it, denser out toward the walls.
+    const edge = TERRAIN.trailHalfWidth + TERRAIN.trailShoulder + TERRAIN.trailClearance;
+    const off = smoothstep(edge, edge + 4, F.d) * (0.3 + 0.7 * smoothstep(F.hw - 5, F.hw + 25, F.d));
     return clamp(F.rocks * off * (0.6 + slope * 0.6) * (1 - F.flat * 0.95), 0, 1);
   }
 }

@@ -5,7 +5,6 @@ import { mergeByMaterial } from './mergeParts';
 /**
  * Original futuristic designs (no real brands or vehicles).
  * Hover car origin: ground under the centre, +Z forward. Named: pads (glow group), seat, gripL, gripR, footL, footR.
- * Jet wing origin: ground under the rider, +Z forward. Named: exhaust (glow group), seat, gripL, gripR, footL, footR.
  */
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -86,53 +85,6 @@ export function buildHoverCar(primary: string, secondary: string): THREE.Group {
   root.add(pads);
   root.traverse((o) => {
     if ((o as THREE.Mesh).isMesh && (o as THREE.Mesh).material !== canopyMat && (o as THREE.Mesh).material !== glowMat) (o as THREE.Mesh).castShadow = true;
-  });
-  return root;
-}
-
-export function buildJetWing(primary: string, secondary: string): THREE.Group {
-  const m = bikeMaterials(primary, secondary);
-  const root = new THREE.Group();
-  root.name = 'jetwing';
-  // Rider lies prone along +Z; the wing sits on the back. Origin = ground under the hips.
-  const wingShape = new THREE.Shape();
-  wingShape.moveTo(0, 0.7);
-  wingShape.lineTo(1.25, -0.35);
-  wingShape.lineTo(1.2, -0.55);
-  wingShape.lineTo(0, -0.25);
-  wingShape.lineTo(-1.2, -0.55);
-  wingShape.lineTo(-1.25, -0.35);
-  wingShape.closePath();
-  const wing = new THREE.ExtrudeGeometry(wingShape, { depth: 0.05, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 1 });
-  wing.rotateX(Math.PI / 2);
-  wing.translate(0, 0.72, 0.15);
-  const body = new THREE.Group();
-  body.add(new THREE.Mesh(wing, m.paint));
-  // Wing-tip stripes and a central spine.
-  for (const s of [1, -1]) body.add(new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.07, 0.1).translate(s * 1.05, 0.73, 0.55), m.accent));
-  body.add(new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.1, 1.0).translate(0, 0.66, 0.2), m.dark));
-  mergeByMaterial(body);
-  root.add(body);
-  // Four small turbines under the wing.
-  const exhaust = new THREE.Group();
-  exhaust.name = 'exhaust';
-  const flame = new THREE.MeshBasicMaterial({ color: '#ffb340', transparent: true, opacity: 0.85 });
-  for (const x of [0.75, 0.32, -0.32, -0.75]) {
-    const eng = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.42, 10).rotateX(Math.PI / 2), m.metal);
-    eng.position.set(x, 0.6, -0.15);
-    root.add(eng);
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.5, 8).rotateX(-Math.PI / 2), flame);
-    cone.position.set(x, 0.6, -0.62);
-    exhaust.add(cone);
-  }
-  root.add(exhaust);
-  marker(root, 'seat', 0, 0.5, 0);
-  marker(root, 'gripL', 0.32, 0.45, 0.55);
-  marker(root, 'gripR', -0.32, 0.45, 0.55);
-  marker(root, 'footL', 0.14, 0.38, -0.95);
-  marker(root, 'footR', -0.14, 0.38, -0.95);
-  root.traverse((o) => {
-    if ((o as THREE.Mesh).isMesh && (o as THREE.Mesh).material !== flame) (o as THREE.Mesh).castShadow = true;
   });
   return root;
 }

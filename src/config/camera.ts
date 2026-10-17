@@ -19,30 +19,30 @@ export interface CameraProfile {
   distancePerSpeed: number;
 }
 
+// Riders Republic-style: low and close, locked in behind the rider, looking down the slope.
 const bike: CameraProfile = {
-  distance: 4.3,
-  height: 1.35,
-  lookHeight: 1.05,
-  lookAhead: 9,
-  fovBase: 68,
+  distance: 3.6,
+  height: 1.25,
+  lookHeight: 0.95,
+  lookAhead: 10,
+  fovBase: 70,
   fovPerSpeed: 14,
-  fovMax: 90,
-  follow: 11,
-  yawFollow: 6.5,
-  distancePerSpeed: 0.3,
+  fovMax: 92,
+  follow: 14,
+  yawFollow: 14,
+  distancePerSpeed: 0.35,
 };
 
 export const CAMERA_PROFILES: Record<VehicleId, CameraProfile> = {
   bicycle: bike,
   mountainBike: bike,
-  motorbike: { ...bike, distance: 5.4, height: 1.9, fovBase: 68 },
-  car: { ...bike, distance: 7.5, height: 2.8, lookHeight: 1.4, fovBase: 66, distancePerSpeed: 1.5 },
-  flyingCar: { ...bike, distance: 8, height: 3, lookHeight: 1.5, fovBase: 68, distancePerSpeed: 1.6 },
-  jet: { ...bike, distance: 11, height: 3.5, lookHeight: 1.5, lookAhead: 20, fovBase: 72, fovPerSpeed: 10, fovMax: 100, distancePerSpeed: 2 },
-  snowboard: { ...bike, distance: 4.4, height: 1.8, lookHeight: 1.0 },
-  onFoot: { ...bike, distance: 3.8, height: 1.7, lookHeight: 1.3, lookAhead: 6, fovBase: 66, fovPerSpeed: 8 },
+  motorbike: { ...bike, distance: 4.4, height: 1.45 },
+  car: { ...bike, distance: 6.2, height: 2.1, lookHeight: 1.3, fovBase: 68, distancePerSpeed: 1.2 },
+  flyingCar: { ...bike, distance: 6.8, height: 2.4, lookHeight: 1.4, fovBase: 68, distancePerSpeed: 1.3 },
+  snowboard: { ...bike, distance: 3.9, height: 1.35, lookHeight: 1.0 },
+  onFoot: { ...bike, distance: 3.4, height: 1.4, lookHeight: 1.3, lookAhead: 6, fovBase: 66, fovPerSpeed: 8 },
   wingsuit: { ...bike, distance: 6.5, height: 1.6, lookHeight: 0.6, lookAhead: 18, fovBase: 72, fovPerSpeed: 12, fovMax: 98, distancePerSpeed: 1.2 },
-  skis: { ...bike, distance: 4.4, height: 1.8, lookHeight: 1.0 },
+  skis: { ...bike, distance: 3.9, height: 1.35, lookHeight: 1.0 },
 };
 
 export const CAMERA = {
@@ -81,6 +81,8 @@ export const CAMERA = {
   /** Extra distance in the air (fraction) and FOV kick while boosting (degrees). */
   airPullBack: 0.07,
   boostFov: 7,
+  /** How much of the ground slope the chase angle follows: the camera sits up-slope and looks down the hill. */
+  slopeFollow: 0.45,
   /** Shake (trauma 0..1) from landings: (impact - landingShakeFrom) / landingShakeRange, capped. */
   landingShakeFrom: 5,
   landingShakeRange: 20,

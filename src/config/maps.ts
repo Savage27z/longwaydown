@@ -62,8 +62,10 @@ export interface SectionSpec {
   forest: number;
   /** 0..1 scattered rock density. */
   rocks: number;
-  /** Flatten the corridor completely (frozen lake). */
+  /** Flatten the corridor completely (the summit plateau). */
   flat?: boolean;
+  /** Surface of the groomed trail in this section (default 'trail'; e.g. 'ice' on icy runs). */
+  trailSurface?: SurfaceId;
   features: FeatureSpec[];
 }
 
@@ -98,8 +100,8 @@ export const MAPS: Record<MapId, MapConfig> = {
     tagline: 'From a jagged summit, through powder, ice and pine, to the village below.',
     seed: 'snow-peak-v1',
     biome: 'snow',
-    summitElevation: 7200,
-    totalDrop: 6800,
+    summitElevation: 7800,
+    totalDrop: 7400,
     fallDirection: 0,
     maxDeviationDeg: 68,
     checkpointSpacing: 2000,
@@ -113,45 +115,46 @@ export const MAPS: Record<MapId, MapConfig> = {
       },
       // Gentler apron below the face: wingsuits sink back down to the snow here.
       {
-        name: 'Runout', length: 900, grade: 0.2, gradeVar: 0.04, curviness: 0.25, width: [150, 180], walls: 0.35, roughness: 0.4, bumps: 0.6,
+        name: 'Runout', length: 900, grade: 0.2, gradeVar: 0.04, curviness: 0.25, width: [110, 140], walls: 0.35, roughness: 0.4, bumps: 0.6,
         surfaces: { powder: 0.5, packed: 0.5 }, offSurface: 'powder', forest: 0, rocks: 0.06, features: [{ type: 'roller', every: 400 }, { type: 'kicker', count: 2 }],
       },
       {
-        name: 'Powder Fields', length: 4320, grade: 0.36, gradeVar: 0.06, curviness: 0.6, width: [120, 150], walls: 0.5, roughness: 0.5, bumps: 1,
+        name: 'Powder Fields', length: 4320, grade: 0.36, gradeVar: 0.06, curviness: 0.6, width: [70, 90], walls: 0.5, roughness: 0.5, bumps: 1,
         surfaces: { powder: 0.55, packed: 0.45 }, offSurface: 'powder', forest: 0, rocks: 0.12,
         features: [{ type: 'jump', every: 280 }, { type: 'roller', every: 520 }, { type: 'ramp', every: 600 }, { type: 'kicker', count: 4 }],
       },
       {
-        name: 'Ridgeline', length: 2400, grade: 0.21, gradeVar: 0.04, curviness: 0.35, width: [60, 75], walls: -0.8, roughness: 0.9, bumps: 0.6,
+        name: 'Ridgeline', length: 2400, grade: 0.21, gradeVar: 0.04, curviness: 0.35, width: [50, 60], walls: -0.8, roughness: 0.9, bumps: 0.6,
         surfaces: { packed: 0.7, powder: 0.2, rock: 0.1 }, offSurface: 'powder', forest: 0, rocks: 0.2,
         features: [{ type: 'overlook', count: 1 }, { type: 'jump', every: 380 }, { type: 'kicker', count: 2 }],
       },
       {
-        name: 'Couloir', length: 1440, grade: 0.6, gradeVar: 0.05, curviness: 0.25, width: [60, 80], walls: 1.6, roughness: 1.1, bumps: 0.9,
+        name: 'Couloir', length: 1440, grade: 0.6, gradeVar: 0.05, curviness: 0.25, width: [45, 60], walls: 1.6, roughness: 1.1, bumps: 0.9,
         surfaces: { powder: 0.7, packed: 0.2, rock: 0.1 }, offSurface: 'rock', forest: 0, rocks: 0.5,
         features: [{ type: 'rockGarden', count: 2 }, { type: 'cliffDrop', count: 1 }, { type: 'arch', count: 1 }],
       },
       {
-        name: 'Icy Switchbacks', length: 3000, grade: 0.27, gradeVar: 0.03, curviness: 0.1, switchbacks: { legLength: 330, angleDeg: 58 }, width: [60, 72], walls: 0.6, roughness: 0.7, bumps: 0.4,
+        name: 'Icy Switchbacks', length: 3000, grade: 0.27, gradeVar: 0.03, curviness: 0.1, switchbacks: { legLength: 330, angleDeg: 58 }, width: [50, 60], trailSurface: 'ice', walls: 0.6, roughness: 0.7, bumps: 0.4,
         surfaces: { ice: 0.65, packed: 0.35 }, offSurface: 'packed', forest: 0.12, rocks: 0.2,
         features: [{ type: 'ramp', count: 2 }, { type: 'kicker', count: 3 }],
       },
       {
-        name: 'Pine Forest', length: 4800, grade: 0.26, gradeVar: 0.05, curviness: 0.55, width: [70, 100], walls: 0.5, roughness: 0.5, bumps: 0.8,
+        name: 'Pine Forest', length: 4800, grade: 0.26, gradeVar: 0.05, curviness: 0.55, width: [50, 70], walls: 0.5, roughness: 0.5, bumps: 0.8,
         surfaces: { packed: 0.6, powder: 0.4 }, offSurface: 'powder', forest: 0.85, rocks: 0.25,
         features: [{ type: 'jump', every: 340 }, { type: 'gap', count: 3 }, { type: 'logs', every: 500 }, { type: 'arch', count: 1 }, { type: 'rockGarden', count: 1 }],
       },
       {
-        name: 'Frozen Lake', length: 1800, grade: 0.012, gradeVar: 0.004, curviness: 0.25, width: [140, 150], walls: 0.15, roughness: 0.3, bumps: 0, flat: true,
-        surfaces: { ice: 1 }, offSurface: 'powder', forest: 0.08, rocks: 0.05,
-        features: [{ type: 'kicker', count: 3 }],
+        // Was a flat frozen lake: now steep icy steps, so the run never stops going down.
+        name: 'Frozen Falls', length: 1800, grade: 0.32, gradeVar: 0.08, curviness: 0.35, width: [60, 80], walls: 0.6, roughness: 0.6, bumps: 0.6, trailSurface: 'ice',
+        surfaces: { ice: 0.6, packed: 0.4 }, offSurface: 'packed', forest: 0.15, rocks: 0.2,
+        features: [{ type: 'cliffDrop', count: 2 }, { type: 'kicker', count: 3 }],
       },
       {
-        name: 'Lower Slopes', length: 4200, grade: 0.22, gradeVar: 0.05, curviness: 0.6, width: [90, 130], walls: 0.45, roughness: 0.6, bumps: 0.8,
+        name: 'Lower Slopes', length: 4200, grade: 0.22, gradeVar: 0.05, curviness: 0.6, width: [60, 80], walls: 0.45, roughness: 0.6, bumps: 0.8,
         surfaces: { packed: 0.55, powder: 0.25, rock: 0.2 }, offSurface: 'packed', forest: 0.45, rocks: 0.35,
         features: [{ type: 'cliffDrop', count: 1 }, { type: 'tunnel', count: 1 }, { type: 'jump', every: 320 }, { type: 'roller', every: 600 }, { type: 'overlook', count: 1 }],
       },
-      { name: 'Finish Village', length: 720, grade: 0.07, gradeVar: 0.01, curviness: 0.1, width: [110, 130], walls: 0.25, roughness: 0.3, bumps: 0.2, surfaces: { packed: 1 }, offSurface: 'packed', forest: 0.15, rocks: 0.05, features: [] },
+      { name: 'Finish Village', length: 720, grade: 0.15, gradeVar: 0.01, curviness: 0.1, width: [80, 100], walls: 0.25, roughness: 0.3, bumps: 0.2, surfaces: { packed: 1 }, offSurface: 'packed', forest: 0.15, rocks: 0.05, features: [] },
     ],
   },
   greenRidge: {
@@ -160,8 +163,8 @@ export const MAPS: Record<MapId, MapConfig> = {
     tagline: 'Meadows, scree and singletrack, across the river and home through the farms.',
     seed: 'green-ridge-v1',
     biome: 'alpine',
-    summitElevation: 6000,
-    totalDrop: 5550,
+    summitElevation: 6900,
+    totalDrop: 6450,
     fallDirection: Math.PI / 2,
     maxDeviationDeg: 70,
     checkpointSpacing: 2000,
@@ -174,40 +177,40 @@ export const MAPS: Record<MapId, MapConfig> = {
         surfaces: { grass: 0.5, rock: 0.3, gravel: 0.2 }, offSurface: 'rock', forest: 0, rocks: 0.08, features: [],
       },
       {
-        name: 'Runout', length: 900, grade: 0.2, gradeVar: 0.04, curviness: 0.25, width: [150, 180], walls: 0.4, roughness: 0.5, bumps: 0.6,
+        name: 'Runout', length: 900, grade: 0.2, gradeVar: 0.04, curviness: 0.25, width: [110, 140], walls: 0.4, roughness: 0.5, bumps: 0.6,
         surfaces: { grass: 0.7, dirt: 0.3 }, offSurface: 'grass', forest: 0, rocks: 0.08, features: [{ type: 'roller', every: 400 }, { type: 'kicker', count: 2 }],
       },
       {
-        name: 'Alpine Meadows', length: 4700, grade: 0.29, gradeVar: 0.06, curviness: 0.6, width: [120, 150], walls: 0.45, roughness: 0.5, bumps: 0.9,
+        name: 'Alpine Meadows', length: 4700, grade: 0.29, gradeVar: 0.06, curviness: 0.6, width: [70, 90], walls: 0.45, roughness: 0.5, bumps: 0.9,
         surfaces: { grass: 0.75, dirt: 0.25 }, offSurface: 'grass', forest: 0.05, rocks: 0.15,
         features: [{ type: 'jump', every: 300 }, { type: 'roller', every: 480 }, { type: 'ramp', every: 700 }, { type: 'kicker', count: 2 }],
       },
       {
-        name: 'Rocky Scree', length: 2240, grade: 0.42, gradeVar: 0.05, curviness: 0.4, width: [80, 110], walls: 0.9, roughness: 1.1, bumps: 1,
+        name: 'Rocky Scree', length: 2240, grade: 0.42, gradeVar: 0.05, curviness: 0.4, width: [55, 75], walls: 0.9, roughness: 1.1, bumps: 1,
         surfaces: { gravel: 0.55, rock: 0.35, dirt: 0.1 }, offSurface: 'gravel', forest: 0, rocks: 0.6,
         features: [{ type: 'rockGarden', count: 3 }, { type: 'cliffDrop', count: 1 }],
       },
       {
-        name: 'Cliffside Trail', length: 2800, grade: 0.25, gradeVar: 0.04, curviness: 0.45, width: [60, 70], walls: -0.6, roughness: 1, bumps: 0.6,
+        name: 'Cliffside Trail', length: 2800, grade: 0.25, gradeVar: 0.04, curviness: 0.45, width: [45, 55], walls: -0.6, roughness: 1, bumps: 0.6,
         surfaces: { dirt: 0.8, rock: 0.2 }, offSurface: 'rock', forest: 0.05, rocks: 0.3,
         features: [{ type: 'overlook', count: 2 }, { type: 'jump', every: 420 }, { type: 'tunnel', count: 1 }],
       },
       {
-        name: 'Forest Singletrack', length: 4480, grade: 0.21, gradeVar: 0.05, curviness: 0.9, width: [60, 75], walls: 0.5, roughness: 0.5, bumps: 0.9,
+        name: 'Forest Singletrack', length: 4480, grade: 0.21, gradeVar: 0.05, curviness: 0.9, width: [40, 55], walls: 0.5, roughness: 0.5, bumps: 0.9,
         surfaces: { dirt: 0.7, mud: 0.15, grass: 0.15 }, offSurface: 'grass', forest: 0.95, rocks: 0.25,
         features: [{ type: 'logs', every: 400 }, { type: 'jump', every: 320 }, { type: 'gap', count: 3 }, { type: 'arch', count: 1 }],
       },
       {
-        name: 'River Valley', length: 3360, grade: 0.07, gradeVar: 0.02, curviness: 0.5, width: [100, 140], walls: 0.35, roughness: 0.4, bumps: 0.5,
+        name: 'River Valley', length: 3360, grade: 0.18, gradeVar: 0.03, curviness: 0.5, width: [60, 80], walls: 0.35, roughness: 0.4, bumps: 0.5,
         surfaces: { grass: 0.5, dirt: 0.3, mud: 0.2 }, offSurface: 'grass', forest: 0.35, rocks: 0.15,
         features: [{ type: 'river', count: 3 }, { type: 'ford', count: 2 }],
       },
       {
-        name: 'Farmland Hills', length: 5040, grade: 0.11, gradeVar: 0.07, curviness: 0.45, width: [110, 150], walls: 0.25, roughness: 0.3, bumps: 0.7,
+        name: 'Farmland Hills', length: 5040, grade: 0.2, gradeVar: 0.06, curviness: 0.45, width: [70, 90], walls: 0.25, roughness: 0.3, bumps: 0.7,
         surfaces: { grass: 0.8, dirt: 0.2 }, offSurface: 'grass', forest: 0.12, rocks: 0.05,
         features: [{ type: 'roller', every: 380 }, { type: 'kicker', count: 5 }, { type: 'jump', every: 400 }],
       },
-      { name: 'Finish Town', length: 670, grade: 0.05, gradeVar: 0.01, curviness: 0.1, width: [110, 130], walls: 0.2, roughness: 0.3, bumps: 0.2, surfaces: { dirt: 0.5, gravel: 0.5 }, offSurface: 'grass', forest: 0.1, rocks: 0.02, features: [] },
+      { name: 'Finish Town', length: 670, grade: 0.15, gradeVar: 0.01, curviness: 0.1, width: [80, 100], walls: 0.2, roughness: 0.3, bumps: 0.2, surfaces: { dirt: 0.5, gravel: 0.5 }, offSurface: 'grass', forest: 0.1, rocks: 0.02, features: [] },
     ],
   },
 };

@@ -32,6 +32,8 @@ export class Bicycle extends ArcadeVehicle {
 
   constructor(physics: PhysicsWorld, state: TransferState, id: 'bicycle' | 'mountainBike' = 'bicycle', paint: ModelOptions = {}) {
     super(id, physics, state);
+    // Show most, not all, of the physical lean: big leans at moderate speed looked unreal.
+    this.leanFactor = 0.75;
     const m = createModel(`vehicle:${id}`, paint);
     this.model.add(m);
     for (const name of ['wheelFront', 'wheelRear', 'steer', 'crank', 'pedalL', 'pedalR', 'seat', 'gripL', 'gripR', 'forkSlider']) {

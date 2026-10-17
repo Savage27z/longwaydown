@@ -132,7 +132,9 @@ export function generateCourse(map: MapConfig): CourseData {
     const si = raw.sec[i]!;
     const sec = map.sections[si]!;
     const s = raw.s[i]!;
-    fields.grade[i] = sec.grade + sec.gradeVar * noise(s / 260, 777 + si * 3.1);
+    // Grade wanders, but never flattens out or turns uphill: always clearly downhill.
+    const g = sec.grade + sec.gradeVar * noise(s / 260, 777 + si * 3.1);
+    fields.grade[i] = sec.grade <= 0 ? 0 : Math.max(g, sec.grade * 0.65);
     const wn = 0.5 + 0.5 * noise(s / 380, 50 + si * 3.3);
     fields.hw[i] = (sec.width[0] + (sec.width[1] - sec.width[0]) * wn) / 2;
     fields.walls[i] = sec.walls;

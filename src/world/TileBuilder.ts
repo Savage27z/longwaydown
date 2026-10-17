@@ -220,7 +220,7 @@ function scatterProps(sampler: TerrainSampler, req: TileRequest, x0: number, z0:
     }
   }
 
-  // Course marker poles along both edges of the corridor.
+  // Trail marker poles along both edges of the groomed trail.
   const course = sampler.course;
   const every = Math.max(1, Math.round(TERRAIN.poleSpacing / course.step));
   const startI = Math.round(60 / course.step);
@@ -228,7 +228,7 @@ function scatterProps(sampler: TerrainSampler, req: TileRequest, x0: number, z0:
     const cxp = course.x[i]!;
     const czp = course.z[i]!;
     if (cxp < x0 - 80 || cxp > x0 + S + 80 || czp < z0 - 80 || czp > z0 + S + 80) continue;
-    const hw = course.hw[i]! + 1.5;
+    const hw = TERRAIN.trailHalfWidth + TERRAIN.trailShoulder + 0.8;
     for (const side of [-1, 1]) {
       const x = cxp - course.tz[i]! * hw * side;
       const z = czp + course.tx[i]! * hw * side;

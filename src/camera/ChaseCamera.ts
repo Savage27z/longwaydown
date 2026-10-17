@@ -14,7 +14,7 @@ export interface CameraTarget {
   /** Head position for the helmet cam. */
   head: THREE.Vector3;
   grounded: boolean;
-  /** Flying (hover car / jet in flight). */
+  /** Flying (hover car or wingsuit in flight). */
   flying: boolean;
   boosting: boolean;
   vehicle: VehicleId;
@@ -56,6 +56,8 @@ export class ChaseCamera {
   private air = 0;
   private roll = 0;
   private flightPitch = 0;
+  /** Smoothed descent angle along the direction of travel (rad, downhill +). */
+  private slope = 0;
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -147,7 +149,11 @@ export class ChaseCamera {
     const hs = Math.hypot(t.velocity.x, t.velocity.z);
     const pathPitch = t.flying && speed > 4 ? Math.atan2(t.velocity.y, hs) : 0;
     this.flightPitch = damp(this.flightPitch, pathPitch, 2.5, dt);
-    const pitch = clamp(Math.atan2(p.height * (far ? CAMERA.farHeight : 1), dist) + this.orbitPitch - this.flightPitch * CAMERA.flightPitchFollow, -0.3, 1.25);
+    // On the ground the camera rides up-slope behind the rider, so you look down the mountain.
+    const descent = t.grounded && hs > 3 ? Math.atan2(-t.velocity.y, hs) : this.slope;
+    this.slope = damp(this.slope, clamp(descent, -0.3, 0.8), 3, dt);
+    const slopePitch = t.flying ? 0 : this.slope * CAMERA.slopeFollow;
+    const pitch = clamp(Math.atan2(p.height * (far ? CAMERA.farHeight : 1), dist) + slopePitch + this.orbitPitch - this.flightPitch * CAMERA.flightPitchFollow, -0.3, 1.35);
     _desired.set(-Math.sin(yaw) * Math.cos(pitch) * dist, Math.sin(pitch) * dist, -Math.cos(yaw) * Math.cos(pitch) * dist);
     if (!this.primed) this.offset.copy(_desired);
     const f = 1 - Math.exp(-p.follow * dt);
@@ -161,7 +167,8 @@ export class ChaseCamera {
 
     _fwd.set(Math.sin(this.yaw), 0, Math.cos(this.yaw));
     const ahead = p.lookAhead * clamp(speed / 20, 0, 1);
-    _look.set(_fwd.x * ahead, p.lookHeight, _fwd.z * ahead);
+    // Look ahead down the slope, not at the horizon.
+    _look.set(_fwd.x * ahead, p.lookHeight - Math.tan(t.flying ? 0 : this.slope) * ahead, _fwd.z * ahead);
     if (!this.primed) this.lookOffset.copy(_look);
     this.lookOffset.lerp(_look, 1 - Math.exp(-6 * dt));
     // Aim between the lagging camera height and the rider, so the rider rises/drops in frame.

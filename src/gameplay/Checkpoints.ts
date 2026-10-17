@@ -5,7 +5,7 @@ export interface CheckpointInfo {
   s: number;
 }
 
-/** Ordered checkpoints along the course. Reached when progress passes them (so jets that skip sections still collect them). */
+/** Ordered checkpoints along the course. Reached when progress passes them (so flyers that skip sections still collect them). */
 export class Checkpoints {
   readonly list: CheckpointInfo[];
   /** Index of the last reached checkpoint (-1 = start). */

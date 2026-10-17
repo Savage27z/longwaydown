@@ -50,13 +50,15 @@ function dims(type: FeatureType, size: number, hw: number, rng: Rng): Dims {
   const lat = (k: number) => (rng() - 0.5) * 2 * hw * k;
   switch (type) {
     case 'jump':
-      return { length: 16 * size, width: 26, height: 3 * size, depth: 0, occupy: 70, maxCurv: 1 / 140, lateral: lat(0.1) };
+      // Flatter, lower lips: snappy 0.6–1.2 s airs rather than floaty launches.
+      return { length: 14 * size, width: 24, height: 1.6 * size, depth: 0, occupy: 70, maxCurv: 1 / 140, lateral: lat(0.08) };
     case 'kicker':
-      return { length: 9, width: 12, height: 1.7, depth: 0, occupy: 30, maxCurv: 1 / 100, lateral: lat(0.3) };
+      return { length: 8, width: 12, height: 1.3, depth: 0, occupy: 30, maxCurv: 1 / 100, lateral: lat(0.15) };
     case 'roller':
-      return { length: 140, width: hw * 2, height: 1.9, depth: 28, occupy: 160, maxCurv: 1 / 250, lateral: 0 };
+      // Long, gentle dips and crests: steep enough to pump, never steeper than the slope (no uphills).
+      return { length: 200, width: hw * 2, height: 1.0, depth: 60, occupy: 220, maxCurv: 1 / 250, lateral: 0 };
     case 'gap':
-      return { length: 16, width: 24, height: 2.6, depth: 4.5, occupy: 90, maxCurv: 1 / 160, lateral: lat(0.1) };
+      return { length: 15, width: 22, height: 2.0, depth: 3.5, occupy: 90, maxCurv: 1 / 160, lateral: lat(0.08) };
     case 'rockGarden':
       return { length: 130, width: hw * 1.6, height: 0.9, depth: 0, occupy: 150, maxCurv: 1 / 120, lateral: 0 };
     case 'cliffDrop':

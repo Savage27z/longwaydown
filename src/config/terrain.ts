@@ -51,6 +51,18 @@ export const TERRAIN = {
 
   /** Slope (rise/run) above which ground becomes rock. */
   rockSlope: 0.95,
-  /** Course marker pole spacing along the line (m). */
-  poleSpacing: 32,
+  /** Trail marker pole spacing along the line (m). */
+  poleSpacing: 24,
+
+  /** The groomed trail along the line: half width, shoulder blend and carve depth (m). */
+  trailHalfWidth: 4.5,
+  trailShoulder: 3,
+  trailDepth: 0.45,
+  /** Raised lips along both trail edges (m): catch light and shadow so the trail reads at speed. */
+  trailLip: 0.4,
+  /** Berms: cross-slope per unit of course curvature (1/m), capped (rise/run). */
+  bermGain: 14,
+  bermMax: 0.35,
+  /** Trees and rocks keep this clear of the trail shoulder (m). */
+  trailClearance: 2,
 };

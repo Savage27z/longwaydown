@@ -25,8 +25,8 @@ describe('vehicle wheel slots', () => {
   });
 
   it('marks locked vehicles before biome rules', () => {
-    const slots = vehicleSlots('alpine', 50, (id) => id !== 'jet' && id !== 'skis');
-    expect(slots.find((s) => s.id === 'jet')).toMatchObject({ enabled: false, reason: 'Locked' });
+    const slots = vehicleSlots('alpine', 50, (id) => id !== 'car' && id !== 'skis');
+    expect(slots.find((s) => s.id === 'car')).toMatchObject({ enabled: false, reason: 'Locked' });
     expect(slots.find((s) => s.id === 'skis')).toMatchObject({ enabled: false, reason: 'Locked' });
   });
 });
