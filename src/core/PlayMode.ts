@@ -1,17 +1,23 @@
 import * as THREE from 'three';
 import { CAMERA, CAMERA_VIEW_LABELS } from '../config/camera';
-import { RUN } from '../config/gameplay';
+import { RUN, SWITCH } from '../config/gameplay';
 import type { MapId } from '../config/maps';
 import { RIDER_ASSET } from '../config/riders';
 import { SURFACE_PHYSICS } from '../config/surfaces';
+import { VEHICLE_IDS, type VehicleId } from '../config/vehicles';
 import { ChaseCamera, type CameraTarget } from '../camera/ChaseCamera';
 import { FlyCam } from '../camera/FlyCam';
+import { Puff } from '../fx/Puff';
 import { SpeedLines } from '../fx/SpeedLines';
 import { Run } from '../gameplay/Run';
 import { loadRiderPack } from '../models/ModelLoader';
 import { PlayerController } from '../player/PlayerController';
 import { HUD } from '../ui/HUD';
+import { keyLabel } from '../ui/SettingsScreen';
 import { Toast } from '../ui/Toast';
+import { VehicleWheel } from '../ui/VehicleWheel';
+import { vehicleSlots } from '../vehicles/slots';
+import { mapBiome } from '../vehicles/VehicleSwitcher';
 import { World } from '../world/World';
 import { events } from './Events';
 import type { Game, GameMode, ProgressFn } from './Game';
@@ -24,7 +30,7 @@ export class PlayMode implements GameMode {
   readonly flyCam: FlyCam;
   readonly run: Run;
   readonly hud: HUD;
-  readonly dev = { flyCam: false };
+  readonly dev = { flyCam: false, orbitCam: false };
   phase: 'menu' | 'run' = 'menu';
   private focus = new THREE.Vector3();
   private global = new THREE.Vector3();
@@ -32,6 +38,9 @@ export class PlayMode implements GameMode {
   private target: CameraTarget;
   private toast: Toast;
   private speedLines: SpeedLines;
+  private puff: Puff;
+  private wheel: VehicleWheel;
+  private switchCooldown = 0;
   private slowMo = 0;
   private spawnS: number;
 
@@ -46,6 +55,9 @@ export class PlayMode implements GameMode {
     this.flyCam = new FlyCam(game.renderer.camera, game.input, world);
     this.toast = new Toast(game.ui);
     this.speedLines = new SpeedLines(game.renderer.camera);
+    this.puff = new Puff(game.renderer.scene);
+    this.wheel = new VehicleWheel(game.ui);
+    this.wheel.onPick = (id) => this.closeWheel(id);
     const best = game.save.data.progress.bestTimes[world.mapId] ?? null;
     this.run = new Run(world.mapId, world.course.checkpoints, this.spawnS, props.finishS, best);
     this.hud = new HUD(game.ui, world.course, world.course.checkpoints, props.finishS);
@@ -82,6 +94,7 @@ export class PlayMode implements GameMode {
 
   /** Menu background: slow flyover down the course, rider parked at the start. */
   enterMenu(): void {
+    this.closeWheel(null);
     this.phase = 'menu';
     this.hud.setVisible(false);
     this.player.respawnAt(this.spawnS, 0, 'menu');
@@ -146,6 +159,7 @@ export class PlayMode implements GameMode {
     }
     if (run.state === 'intro' && input.framePressed('jump')) run.skipIntro();
     if (input.framePressed('respawn') && run.state === 'running') this.respawnAtCheckpoint();
+    this.updateWheel(realDt);
 
     this.player.frozen = run.frozen;
     this.player.autoBrake = run.state === 'finished';
@@ -161,6 +175,7 @@ export class PlayMode implements GameMode {
     }
 
     this.player.update(simDt, alpha);
+    this.puff.update(simDt);
     this.updateCamera(realDt);
 
     this.player.focusLocal(this.focus);
@@ -179,6 +194,42 @@ export class PlayMode implements GameMode {
     this.world.update(realDt, this.focus, this.player.progress.result.s);
   }
 
+  /** Hold the wheel key: slow-mo + radial picker; release to swap. */
+  private updateWheel(dt: number): void {
+    const input = this.game.input;
+    this.switchCooldown = Math.max(0, this.switchCooldown - dt);
+    const rs = this.run.state;
+    const canSwitch = this.game.state === 'playing' && this.player.state === 'riding' && (rs === 'intro' || rs === 'countdown' || rs === 'running');
+    if (this.wheel.isOpen) {
+      if (!canSwitch) {
+        this.closeWheel(null);
+        return;
+      }
+      // Right stick picks (left keeps steering); fall back to the left stick.
+      const r = input.rightStick;
+      const l = input.leftStick;
+      this.wheel.update(Math.hypot(r.x, r.y) > SWITCH.stickDeadzone ? r : l);
+      if (!input.isDown('vehicleWheel')) this.closeWheel(this.wheel.close(), true);
+    } else if (canSwitch && input.framePressed('vehicleWheel') && this.switchCooldown <= 0) {
+      const slots = vehicleSlots(mapBiome(this.world));
+      this.wheel.open(this.player.vehicle.id, slots, keyLabel(input.keys.vehicleWheel[0] ?? 'KeyQ'));
+      this.game.loop.timeScale = SWITCH.wheelTimeScale;
+      events.emit('wheel:toggle', { open: true });
+    }
+  }
+
+  private closeWheel(pick: VehicleId | null, wasOpen = this.wheel.isOpen): void {
+    this.wheel.cancel();
+    if (wasOpen) {
+      this.game.loop.timeScale = this.slowMo > 0 ? RUN.finishTimeScale : 1;
+      events.emit('wheel:toggle', { open: false });
+    }
+    if (pick && this.player.switchTo(pick)) {
+      this.switchCooldown = SWITCH.cooldown;
+      this.chase.addTrauma(0.15);
+    }
+  }
+
   private updateMenu(dt: number): void {
     const fc = this.flyCam;
     if (fc.autoS >= this.world.course.length - 600) fc.teleport(60, RUN.menuFlyHeight);
@@ -190,6 +241,10 @@ export class PlayMode implements GameMode {
   }
 
   private updateCamera(dt: number): void {
+    if (this.wheel.isOpen) {
+      this.game.input.mouseDX = 0;
+      this.game.input.mouseDY = 0;
+    }
     if (this.dev.flyCam) {
       this.flyCam.update(dt);
       this.speedLines.update(dt, 0);
@@ -209,7 +264,7 @@ export class PlayMode implements GameMode {
     t.grounded = v.telemetry.grounded;
     t.vehicle = v.id;
     // Cinematic orbits for the intro and after the finish.
-    if (this.run.state === 'intro') this.chase.orbit(dt, 0.55, 0.25);
+    if (this.run.state === 'intro' || this.dev.orbitCam) this.chase.orbit(dt, 0.55, 0.25);
     else if (this.run.state === 'finished') this.chase.orbit(dt, 0.35, 0.35);
     else if (t.grounded) {
       // Rough ground rumbles the camera a little.
@@ -237,7 +292,14 @@ export class PlayMode implements GameMode {
         },
       }),
       Camera: this.dev,
-      Bicycle: this.player.vehicle.stats as unknown as Record<string, unknown>,
+      Vehicle: {
+        ride: this.player.vehicle.id as string,
+        __options: { ride: VEHICLE_IDS as unknown as string[] },
+        switchNow() {
+          self.player.switchTo(this.ride as VehicleId);
+        },
+      },
+      'Vehicle stats': this.player.vehicle.stats as unknown as Record<string, unknown>,
     };
   }
 
@@ -260,6 +322,8 @@ export class PlayMode implements GameMode {
     this.hud.dispose();
     this.toast.dispose();
     this.speedLines.dispose();
+    this.puff.dispose();
+    this.wheel.dispose();
     this.player.dispose();
     this.world.dispose();
   }

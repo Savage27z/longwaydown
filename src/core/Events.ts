@@ -1,3 +1,4 @@
+import type { VehicleId } from '../config/vehicles';
 import type { LandInfo } from '../vehicles/Vehicle';
 import type { RunResults, RunState } from '../gameplay/Run';
 
@@ -56,6 +57,9 @@ export interface GameEvents {
   'player:land': LandInfo;
   'player:crash': { reason: string; penalty: number };
   'player:respawn': { reason: string };
+  /** Vehicle swapped in place; position is local (simulation) coordinates. */
+  'player:switch': { from: VehicleId; to: VehicleId; position: Vec3Like };
+  'wheel:toggle': { open: boolean };
   'camera:mode': { mode: 'chase' | 'far' | 'first' };
   'run:state': { state: RunState };
   'run:countdown': { n: number };

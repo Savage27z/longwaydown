@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import type { VehicleId } from '../config/vehicles';
 import { buildBicycle } from './procedural/bicycle';
+import { buildMotorbike } from './procedural/motorbike';
+import { buildBuggy } from './procedural/buggy';
+import { buildHoverCar, buildJetWing } from './procedural/flyers';
+import { buildSkis, buildSnowboard } from './procedural/boards';
 import { BONES, buildCharacterRig, MATERIAL_SLOTS, type BoneName, type CharacterRig, type MaterialSlot } from './procedural/character';
 
 /**
@@ -21,6 +25,12 @@ type Builder = (opt: Required<ModelOptions>) => THREE.Object3D;
 const builders: Partial<Record<ModelId, Builder>> = {
   'vehicle:bicycle': (o) => buildBicycle({ mtb: false, primary: o.primary, secondary: o.secondary }),
   'vehicle:mountainBike': (o) => buildBicycle({ mtb: true, primary: o.primary, secondary: o.secondary }),
+  'vehicle:motorbike': (o) => buildMotorbike(o.primary, o.secondary),
+  'vehicle:car': (o) => buildBuggy(o.primary, o.secondary),
+  'vehicle:flyingCar': (o) => buildHoverCar(o.primary, o.secondary),
+  'vehicle:jet': (o) => buildJetWing(o.primary, o.secondary),
+  'vehicle:snowboard': (o) => buildSnowboard(o.primary, o.secondary),
+  'vehicle:skis': (o) => buildSkis(o.primary, o.secondary),
 };
 
 const glbUrls: Partial<Record<ModelId, string>> = {};

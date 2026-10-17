@@ -112,7 +112,7 @@ export function applyPose(b: RigBinding, p: PoseTargets): void {
   ] as const) {
     _t.copy(target);
     b.root.localToWorld(_t);
-    _pole.set(p.kneePole.x * side, p.kneePole.y, p.kneePole.z).applyQuaternion(_rootQ);
+    _pole.set(p.kneePole.x * (p.mirrorPoles ? side : 1), p.kneePole.y, p.kneePole.z).applyQuaternion(_rootQ);
     const end = solveTwoBone(leg.upper, leg.lower, leg.l1, leg.l2, _t, _pole, leg.upperAxes, leg.lowerAxes, leg.frontSign);
     if (leg.endMode === 'free') {
       leg.end.parent!.worldToLocal(end);
@@ -139,7 +139,7 @@ export function applyPose(b: RigBinding, p: PoseTargets): void {
       _t.addScaledVector(_v, (arm.l1 + arm.l2) * Math.cos(p.freeArm.bend * 0.5) * 0.98);
       b.root.localToWorld(_t);
     }
-    _pole.set(p.elbowPole.x * side, p.elbowPole.y, p.elbowPole.z).applyQuaternion(_rootQ);
+    _pole.set(p.elbowPole.x * (p.mirrorPoles ? side : 1), p.elbowPole.y, p.elbowPole.z).applyQuaternion(_rootQ);
     solveTwoBone(arm.upper, arm.lower, arm.l1, arm.l2, _t, _pole, arm.upperAxes, arm.lowerAxes, arm.frontSign);
     if (arm.endMode === 'free') {
       arm.lower.updateMatrixWorld(true);

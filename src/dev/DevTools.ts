@@ -5,6 +5,8 @@ import { StatsOverlay } from './StatsOverlay';
 import { PhysicsDebug } from './PhysicsDebug';
 import { AutoRider } from './AutoRider';
 import type { PlayMode } from '../core/PlayMode';
+import { events } from '../core/Events';
+import { VEHICLES } from '../config/vehicles';
 
 /**
  * Dev tuning panel (lil-gui) + stats + physics debug. Only ever loaded through a dynamic
@@ -38,6 +40,13 @@ export class DevTools {
       if (e.code !== 'Backquote') return;
       if (this.gui._hidden) this.gui.show();
       else this.gui.hide();
+    });
+
+    // Keep the stats folder pointed at whatever is being ridden.
+    events.on('player:switch', ({ to }) => {
+      if (!this.folders.has('Vehicle stats')) return;
+      this.removeFolder('Vehicle stats');
+      this.addConfig('Vehicle stats', VEHICLES[to] as unknown as Record<string, unknown>).close();
     });
 
     game.frameHooks.add((dt) => {
@@ -81,12 +90,13 @@ export class DevTools {
 
   /**
    * Add every numeric/boolean/function field of a plain config object as controllers.
-   * An optional `__ranges` field maps keys to [min, max, step].
+   * An optional `__ranges` field maps keys to [min, max, step]; `__options` maps string keys to choices.
    */
   addConfig(folderName: string, obj: Record<string, unknown>, ranges: Record<string, [number, number, number?]> = {}): GUI {
     const f = this.folder(folderName);
     const r2 = { ...((obj.__ranges as Record<string, [number, number, number?]>) ?? {}), ...ranges };
     ranges = r2;
+    const options = (obj.__options as Record<string, string[]>) ?? {};
     for (const key of Object.keys(obj)) {
       if (key.startsWith('__')) continue;
       const v = obj[key];
@@ -98,6 +108,8 @@ export class DevTools {
         else f.add(obj, key);
       } else if (typeof v === 'boolean') {
         f.add(obj, key);
+      } else if (typeof v === 'string' && options[key]) {
+        f.add(obj, key, options[key]);
       }
     }
     return f;

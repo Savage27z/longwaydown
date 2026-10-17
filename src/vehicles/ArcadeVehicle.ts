@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SURFACE_PHYSICS, SURFACES, type SurfaceId } from '../config/surfaces';
+import { SNOW_SURFACES, SURFACE_PHYSICS, SURFACES, type SurfaceId } from '../config/surfaces';
 import { RIDING, type VehicleId } from '../config/vehicles';
 import { Group, groups, GROUND_QUERY, type PhysicsWorld } from '../physics/PhysicsWorld';
 import { R } from '../physics/rapier';
@@ -53,6 +53,12 @@ export abstract class ArcadeVehicle extends Vehicle {
   protected readonly r = new THREE.Vector3();
   protected readonly vt = new THREE.Vector3();
   protected tangentSpeedBefore = 0;
+  /** Subclasses (flyers) can override the gravity scale; null = stats.gravityScale. */
+  protected gravityOverride: number | null = null;
+  /** Most recent ground distance (air), exposed for flight models. */
+  get groundDistance(): number {
+    return this.grounded ? this.perpDist : this.airGroundDist;
+  }
   protected tookOff = false;
   protected lastAlpha = 1;
 
@@ -113,7 +119,7 @@ export abstract class ArcadeVehicle extends Vehicle {
     const lv = this.body.linvel();
     const v = this.v.set(lv.x, lv.y, lv.z);
     this.jumpGrace = Math.max(0, this.jumpGrace - dt);
-    this.jumpBufferT = input.jumpPressed ? RIDING.jumpBuffer : Math.max(0, this.jumpBufferT - dt);
+    this.jumpBufferT = this.jumpTrigger(input) ? RIDING.jumpBuffer : Math.max(0, this.jumpBufferT - dt);
 
     // --- Ground probes (front / rear) ---
     const hx = Math.sin(this.heading);
@@ -165,10 +171,12 @@ export abstract class ArcadeVehicle extends Vehicle {
     if (hits > 0) this.surface = SURFACES[ctx.world.surfaceLocal(hitX, hitZ)] ?? 'packed';
     const sp = SURFACE_PHYSICS[this.surface];
     const sm = s.surface[this.surface] ?? {};
+    // Boards/skis on anything but snow: barely any glide and poor edge grip.
+    const offSnow = s.snowOnly && !SNOW_SURFACES.has(this.surface) ? 1 : 0;
 
     this.boostingFlag(input.boost && mods.boostAvailable);
     if (grounded) {
-      this.groundStep(dt, input, ctx, v, n, dist, sp.grip * (sm.grip ?? 1), sp.rolling * (sm.rolling ?? 1), sp.softDrag * (sm.drag ?? 1));
+      this.groundStep(dt, input, ctx, v, n, dist, sp.grip * (sm.grip ?? 1) * (offSnow ? 0.5 : 1), sp.rolling * (sm.rolling ?? 1) + offSnow * 5, sp.softDrag * (sm.drag ?? 1) + offSnow * 0.25);
       if (this.jumpBufferT > 0 && this.groundTime > 0.03 && s.jumpSpeed > 0) {
         this.doJump(v, n);
         grounded = false;
@@ -180,7 +188,7 @@ export abstract class ArcadeVehicle extends Vehicle {
         this.doJump(v, n);
         this.coyoteUsed = true;
       }
-      this.airStep(dt, input, v);
+      if (!this.flightStep(dt, input, ctx, v)) this.airStep(dt, input, v);
     }
 
     // --- Aero drag + soft top speed (both ground and air) ---
@@ -191,7 +199,7 @@ export abstract class ArcadeVehicle extends Vehicle {
     if (speed > top) v.multiplyScalar(1 - Math.min(0.05, (speed - top) * 0.03 * dt));
 
     this.body.setLinvel(v, true);
-    this.body.setGravityScale(s.gravityScale * mods.gravityMul, true);
+    this.body.setGravityScale((this.gravityOverride ?? s.gravityScale) * mods.gravityMul, true);
 
     // --- Bookkeeping ---
     this.grounded = grounded;
@@ -223,12 +231,33 @@ export abstract class ArcadeVehicle extends Vehicle {
     this.jumpBufferT = 0;
   }
 
+  /** When does a jump fire? Default: on press. (The motorbike preloads and fires on release.) */
+  protected jumpTrigger(input: VehicleInput): boolean {
+    return input.jumpPressed;
+  }
+
+  /** Extra visual pitch on the ground (wheelies); nose up = negative. */
+  protected extraPitch = 0;
+
+  /** Model-local position of a named node, in the character mount frame. */
+  protected partLocal(root: THREE.Object3D, name: string, out: THREE.Vector3): THREE.Vector3 {
+    const o = root.getObjectByName(name);
+    if (!o) return out.set(0, 1, 0);
+    o.getWorldPosition(out);
+    return this.mount.worldToLocal(out);
+  }
+
+  /** Flight hook: return true to replace the default air step (flying car, jet). */
+  protected flightStep(_dt: number, _input: VehicleInput, _ctx: VehicleContext, _v: THREE.Vector3): boolean {
+    return false;
+  }
+
   /** Jump strength multiplier hook (charged hops etc.). */
   protected jumpMultiplier(): number {
     return 1;
   }
 
-  private boostingFlag(on: boolean): void {
+  protected boostingFlag(on: boolean): void {
     this.telemetry.boosting = on;
   }
 
@@ -291,7 +320,7 @@ export abstract class ArcadeVehicle extends Vehicle {
     return 1;
   }
 
-  private airStep(dt: number, input: VehicleInput, v: THREE.Vector3): void {
+  protected airStep(dt: number, input: VehicleInput, v: THREE.Vector3): void {
     const s = this.stats;
     this.heading = wrapAngle(this.heading - input.steer * s.airSteer * dt);
     this.trickPitch += input.pitch * s.airPitchRate * dt;
@@ -313,7 +342,7 @@ export abstract class ArcadeVehicle extends Vehicle {
   }
 
   /** Returns false if the landing crashed (and wasn't absorbed). */
-  private evaluateLanding(v: THREE.Vector3): boolean {
+  protected evaluateLanding(v: THREE.Vector3): boolean {
     const s = this.stats;
     const upVis = _x.set(0, 1, 0).applyQuaternion(this.currQuat);
     const angle = THREE.MathUtils.radToDeg(upVis.angleTo(this.groundNormal));
@@ -371,7 +400,7 @@ export abstract class ArcadeVehicle extends Vehicle {
     const spd = this.telemetry.speed;
     const targetLean = this.grounded ? clamp(-Math.atan2(spd * this.yawRate, 9.81), -0.75, 0.75) : 0;
     this.lean = damp(this.lean, targetLean, 8, 1 / 60);
-    _q.setFromEuler(_e.set(this.trickPitch, this.trickYaw, this.lean, 'YXZ'));
+    _q.setFromEuler(_e.set(this.trickPitch + this.extraPitch, this.trickYaw, this.lean, 'YXZ'));
     this.currQuat.multiply(_q);
   }
 

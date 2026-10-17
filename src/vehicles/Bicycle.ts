@@ -136,6 +136,7 @@ export class Bicycle extends ArcadeVehicle {
     out.kneePole.set(0.12, 0.25, 1);
     out.elbowPole.set(0.8, -0.35, -0.45);
     out.footYaw = 0;
+    out.mirrorPoles = true;
     return out;
   }
 }

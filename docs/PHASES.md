@@ -177,3 +177,81 @@
 - The start/finish cinematics are simple orbits for now (the Phase 10 cinematic pass).
 - Menus are mouse-driven; gamepad menu navigation comes in Phase 10.
 - Customize is a placeholder until Phase 8.
+
+## Phase 5: All Vehicles + Switching
+
+**What was built**
+- Seven new rideable vehicles, each with its own procedural model, rider pose and camera profile. All stats live in `config/vehicles.ts`, and the flight tuning is in `FLIGHT`.
+
+  | Vehicle | Top speed (boost) | How it rides |
+  |---|---|---|
+  | Bicycle | 137 (173) km/h | As in Phase 3: pedal with W. |
+  | Mountain Bike | 148 km/h | Longer, softer suspension. Grips better on rock and gravel and survives harder landings. |
+  | Motorbike | 158 (187) km/h | Engine pull up to top speed. Hold Space to preload, release to pop a bigger jump. Pitch back on the ground to wheelie. The forks and swingarm compress, and the rider stands up. |
+  | Buggy | 166 (194) km/h | A real 4-wheel raycast vehicle (Rapier's `DynamicRayCastVehicleController`). Details below. |
+  | Hover Car | 173 km/h | Hovers on glowing pads. Space lifts off into flight: W thrusts, A/D bank-turn, ↑/↓ pitch. The flight meter drains in about 9 s of thrust and recharges on the ground. Switching to it in mid-air goes straight into flight. |
+  | Jet | 209 (238) km/h | The rider flies prone under a turbine wing and is always flying once airborne. Fuel lasts about 20 s of thrust and only refills on the ground or while gliding within 15 m of the terrain. There's a 150 m ceiling, and with no fuel it glides. |
+  | Snowboard | 130 km/h | Sideways stance, with the board on its edge in carves. Braking skids it sideways. Lands switch. Snow only. |
+  | Skis | 144 km/h | The fastest tuck on snow and tighter carves. Brake to snowplough. The poles hang from the hands. Snow only. |
+
+  - **Buggy details:**
+    - All-wheel drive, with steering lock that eases off at speed.
+    - S brakes, then reverses (capped at 25 km/h). Space is the handbrake: the rear tyres lose side grip so it drifts.
+    - Downforce plus an anti-roll assist keep it planted. Arrow keys give air control.
+    - Ending up on its roof is a crash. A Shield buff will turn that into an auto-right.
+  - **Off snow:** snow-only vehicles lose grip, roll harder and drag more on any surface that isn't snow.
+- **Switching:**
+  - **The wheel:** hold Q (gamepad LB) to open a radial wheel; the game drops to 0.3× speed while it's open. Pick a vehicle with the mouse direction, the right stick, keys 1–8 or a click, then release Q to swap.
+  - **The swap:**
+    - Position and heading carry over.
+    - Speed carries over, clamped to 1.1× the new vehicle's top speed.
+    - Near the ground the new vehicle is set down on it; in the air it keeps its height.
+  - **The effect:** a smoke puff and white flash play, the new model pops in with a small overshoot, the camera eases into the new vehicle's profile, and the HUD chip updates.
+  - **When it's allowed:** during the intro, countdown and the run (so you can pick at the gate), but not while crashed or after the finish. There's a 0.5 s cooldown.
+  - Skis and Snowboard are greyed out with "Snow only" on Green Ridge. The rule lives in `vehicles/slots.ts`, which already has a lock hook for Phase 8 unlocks.
+- New modules:
+  - `vehicles/Car.ts`, `MountainBike.ts`, `Motorbike.ts`, `FlyingCar.ts`, `Jet.ts`, `FlightModel.ts`, `Snowboard.ts`, `Skis.ts`, `VehicleSwitcher.ts`, `slots.ts`
+  - `ui/VehicleWheel.ts`, `fx/Puff.ts`
+  - models in `models/procedural/{motorbike,buggy,flyers,boards}.ts`
+- The dev panel (~) has a Vehicle folder: pick a vehicle and click "switchNow". The "Vehicle stats" folder follows whatever you're riding. "Camera → orbitCam" spins the camera around the rider for inspection.
+
+**Verified**
+- Typecheck, 25 tests (3 new, for the wheel's snow-only and lock rules), production build, and dev code absent from `dist`.
+- Bot runs on Snow Peak, 25 s per vehicle, no console errors:
+
+  | Vehicle | Distance | Max speed |
+  |---|---|---|
+  | Bicycle | 480 m | 94 km/h |
+  | Mountain Bike | 666 m | 125 km/h |
+  | Motorbike | 983 m | 150 km/h |
+  | Buggy | 805 m | 166 km/h |
+  | Hover Car | 1122 m | 165 km/h |
+  | Jet | 1614 m | 233 km/h |
+  | Snowboard | 521 m | 150 km/h |
+  | Skis | 748 m | 117 km/h |
+
+- Bot runs on Green Ridge, 30 s each: Buggy 897 m (17 landings, no crashes), Motorbike 1.96 km (no crashes).
+- Flight: the Hover Car climbed to about 60 m, ran its meter down in about 7 s, landed and recharged. The Jet climbed to about 150 m and cruised at up to 233 km/h.
+- 40 back-to-back switches leave memory flat: 14 bodies and 385 colliders before and after, geometries 113 → 114.
+- Each vehicle was checked visually with the rider pose: buggy seat and wheel, hover-car canopy, prone jet, board stance, skis with poles, motorbike.
+- Fixed while testing:
+  - Releasing Q left the game in slow motion.
+  - The jet crashed during construction (an init-order bug).
+  - The buggy reversed at 50+ km/h when you held brake.
+  - Buggy air pitch was inverted.
+  - The buggy didn't report landings (needed for camera shake now and tricks in Phase 6).
+
+**How to test:** run `npm run dev` → Play. During the countdown or the ride, hold Q, point at a vehicle (or press 1–8) and release. Things to try:
+- Buggy: Space to drift.
+- Hover Car: Space to lift off, W to thrust, ↑/↓ to pitch.
+- Jet: Space to hop into the air, then W to fly.
+- Motorbike: hold and release Space for a big jump; ↓ on the ground for a wheelie.
+- Skis and Snowboard: S to plough or skid.
+
+**Known issues**
+- The bot drives every vehicle straight down the line, so it plows the buggy into the first rock garden at about 0.3 km. A player steers around it.
+- Flying cuts corners by design. The jet's fuel limits are the balance knob and will need your feel check. Tricks and boost (Phase 6) will also reward ground lines.
+- Vehicle model art is a first pass, especially the jet wing and hover-car canopy. Paint and customization come in Phase 8.
+- `ArcadeVehicle.ts` is about 460 lines, a little over the module budget. It will be split when tricks move out in Phase 6.
+
+**Next (Phase 6):** pickups and buffs, the boost meter (fed by tricks, near-misses, air and speed), trick detection with combos and pop-ups, buff icons in the HUD, and the extra results stats.

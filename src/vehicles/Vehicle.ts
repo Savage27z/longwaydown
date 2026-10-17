@@ -140,6 +140,8 @@ export abstract class Vehicle {
   abstract renderQuaternion(out: THREE.Quaternion): THREE.Quaternion;
   abstract shiftOrigin(dx: number, dy: number, dz: number): void;
   abstract dispose(physics: PhysicsWorld): void;
+  /** Called right after a mid-ride switch put this vehicle in place. */
+  onSwitchedIn(_airborne: boolean): void {}
 
   snapshot(): VehicleSnapshot {
     const t = this.body.translation();

@@ -22,6 +22,8 @@ export interface PoseTargets {
   freeArm: { pitch: number; spread: number; bend: number };
   /** Foot yaw relative to the vehicle (boards stand sideways). */
   footYaw: number;
+  /** Mirror pole X per side (symmetric stances). Boards turn it off: both knees point the same way. */
+  mirrorPoles: boolean;
 }
 
 export function makePose(): PoseTargets {
@@ -39,5 +41,6 @@ export function makePose(): PoseTargets {
     elbowPole: new THREE.Vector3(0, -0.3, -1),
     freeArm: { pitch: 0.1, spread: 0.15, bend: 0.3 },
     footYaw: 0,
+    mirrorPoles: true,
   };
 }

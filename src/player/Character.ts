@@ -52,6 +52,7 @@ export class Character {
     c.freeArm.spread += (target.freeArm.spread - c.freeArm.spread) * k;
     c.freeArm.bend += (target.freeArm.bend - c.freeArm.bend) * k;
     c.footYaw += (target.footYaw - c.footYaw) * k;
+    c.mirrorPoles = target.mirrorPoles;
     applyPose(this.binding, c);
   }
 

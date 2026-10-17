@@ -1,10 +1,12 @@
 import * as THREE from 'three';
+import { SWITCH } from '../config/gameplay';
 import { RIDING, type VehicleId } from '../config/vehicles';
 import { events } from '../core/Events';
 import type { Game } from '../core/Game';
 import { ProgressTracker } from '../world/CourseQuery';
 import type { World } from '../world/World';
 import { createVehicle } from '../vehicles/factory';
+import { swapVehicle } from '../vehicles/VehicleSwitcher';
 import { defaultMods, emptyInput, type TransferState, type Vehicle, type VehicleContext, type VehicleSnapshot } from '../vehicles/Vehicle';
 import { Character, makePose } from './Character';
 import { Ragdoll } from './Ragdoll';
@@ -46,6 +48,8 @@ export class PlayerController {
   private offShift: () => void;
   private simTime = 0;
   private steerSmooth = 0;
+  /** Pop-in animation after a switch (0..1, 1 = done). */
+  private popT = 1;
 
   constructor(
     private readonly game: Game,
@@ -82,6 +86,23 @@ export class PlayerController {
     v.hooks.onCrash = (reason) => this.onCrash(reason);
     v.hooks.onLand = (info) => events.emit('player:land', info);
     v.hooks.onTakeoff = () => events.emit('player:takeoff', {});
+  }
+
+  /** Swap the ridden vehicle in place (keeps position, heading and most of the speed). */
+  switchTo(id: VehicleId): boolean {
+    if (this.state !== 'riding' || id === this.vehicle.id) return false;
+    const from = this.vehicle.id;
+    // Detach the rider first: disposing the old vehicle disposes everything under its model.
+    this.character.root.removeFromParent();
+    try {
+      this.vehicle = swapVehicle(this.vehicle, id, this.game.physics, this.world);
+    } finally {
+      this.attachVehicle(this.vehicle);
+    }
+    this.popT = 0;
+    const p = this.vehicle.transfer().position;
+    events.emit('player:switch', { from, to: id, position: { x: p.x, y: p.y, z: p.z } });
+    return true;
   }
 
   /** Absorb-able crash entry point. Returns true if the crash was ignored. */
@@ -188,6 +209,13 @@ export class PlayerController {
 
   update(dt: number, alpha: number): void {
     this.vehicle.render(dt, alpha);
+    if (this.popT < 1) {
+      // Elastic pop: overshoot then settle.
+      this.popT = Math.min(1, this.popT + dt / SWITCH.popDuration);
+      const t = this.popT;
+      const k = 1 - Math.pow(1 - t, 3) + Math.sin(t * Math.PI) * 0.18;
+      this.vehicle.model.scale.setScalar(0.55 + 0.45 * k);
+    } else if (this.vehicle.model.scale.x !== 1) this.vehicle.model.scale.setScalar(1);
     if (this.state === 'riding') {
       this.vehicle.pose(this.pose, this.input);
       this.character.update(dt, this.pose);

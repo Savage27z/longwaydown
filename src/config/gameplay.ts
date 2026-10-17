@@ -18,3 +18,20 @@ export const RUN = {
   menuFlySpeed: 28,
   menuFlyHeight: 45,
 };
+
+/** Vehicle switching (hold the wheel key, pick, release). */
+export const SWITCH = {
+  /** Game speed while the wheel is open. */
+  wheelTimeScale: 0.3,
+  /** Carried velocity is clamped to this multiple of the new vehicle's top speed. */
+  velocityClamp: 1.1,
+  /** Below this clearance (m) the new vehicle is put down on the ground; above it keeps its height. */
+  groundSnap: 1.2,
+  /** Minimum real seconds between switches. */
+  cooldown: 0.5,
+  /** New model pop-in animation (s). */
+  popDuration: 0.32,
+  /** Mouse travel (px) / stick deflection needed to pick a wheel slot. */
+  mouseDeadzone: 40,
+  stickDeadzone: 0.45,
+};
