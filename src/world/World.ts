@@ -110,6 +110,7 @@ export class World {
     this.focusGlobal.copy(focusLocal).add(this.origin.origin);
     this.chunks.update(dt, this.focusGlobal, progressS);
     this.courseProps.update(dt, this.focusGlobal);
+    this.courseProps.animate(dt, this.focusGlobal);
     this.backdrop?.update(focusLocal);
     this.sky.update(this.renderer.camera, focusLocal, this.origin.origin.y);
     this.trimTimer -= dt;

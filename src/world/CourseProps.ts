@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 import { MAPS, type MapId } from '../config/maps';
+import { TERRAIN } from '../config/terrain';
+import { crowd } from '../models/Crowd';
+import { eventArch, featherFlag, popupTent, startArea } from '../models/procedural/event';
 import { Group, groups, type PhysicsWorld } from '../physics/PhysicsWorld';
 import { R, type RapierNS } from '../physics/rapier';
 import { addStatic, disposeObject } from '../utils/dispose';
@@ -8,15 +11,12 @@ import { waterLevel } from './Features';
 import type { TerrainSampler } from './TerrainSampler';
 import {
   bridge,
-  checkpointGate,
-  finishArch,
   house,
   kmSign,
   lipFlags,
   log,
   ramp,
   rockArch,
-  startArea,
   tunnelShell,
   viewpoint,
   waterPlane,
@@ -69,7 +69,7 @@ export class CourseProps {
     // Start area.
     {
       const i = at(this.startS);
-      add(c.x[i]!, h(c.x[i]!, c.z[i]!) + 0.05, c.z[i]!, headingAt(i), 0, () => startArea(primaryColor));
+      add(c.x[i]!, h(c.x[i]!, c.z[i]!), c.z[i]!, headingAt(i), 0, () => startArea(primaryColor, TERRAIN.trailHalfWidth + TERRAIN.trailShoulder));
     }
     // Distance signs on the right edge.
     c.markers.forEach((s, k) => {
@@ -80,11 +80,42 @@ export class CourseProps {
       add(x, h(x, z), z, headingAt(i), 0, () => kmSign(k + 1, (c.length - s) / 1000, primaryColor));
     });
 
-    // Checkpoint gates across the line.
+    // Checkpoint gates across the trail.
     c.checkpoints.forEach((s, k) => {
       const i = at(s);
-      add(c.x[i]!, h(c.x[i]!, c.z[i]!) - 0.3, c.z[i]!, headingAt(i), 0, () => checkpointGate(Math.min(c.hw[i]! * 2 - 6, 60), k + 1, '#1f8fff'));
+      add(c.x[i]!, h(c.x[i]!, c.z[i]!) - 0.2, c.z[i]!, headingAt(i), 0, () => eventArch((TERRAIN.trailHalfWidth + TERRAIN.trailShoulder) * 2 + 6, `CHECKPOINT ${k + 1}`, '#1f8fff'));
     });
+
+    // Spectators behind barriers, facing the trail. A crowd's local +X faces the trail; side +1 =
+    // the right of the trail (its +X then points left, toward the trail), side -1 turns it around.
+    const trailEdge = TERRAIN.trailHalfWidth + TERRAIN.trailShoulder;
+    const crowdAt = (s: number, side: 1 | -1, people: number, length: number, gap = 2.5) => {
+      if (s < 5 || s > c.length - 5) return;
+      const i = at(s);
+      const off = (trailEdge + gap) * side;
+      const x = c.x[i]! - c.tz[i]! * off;
+      const z = c.z[i]! + c.tx[i]! * off;
+      const grade = gradeAt(i);
+      add(x, h(x, z), z, headingAt(i) + (side > 0 ? 0 : Math.PI), side > 0 ? grade : -grade, () => crowd(people, length, `${sampler.map.seed}:crowd:${Math.round(s)}:${side}`));
+    };
+    const L = MAPS[c.mapId as MapId].launch;
+    for (const side of [1, -1] as const) {
+      crowdAt(this.startS + 8, side, 14, 20);
+      crowdAt(L.edgeS - 18, side, 12, 18);
+    }
+    c.checkpoints.forEach((s) => {
+      crowdAt(s - 8, 1, 14, 20);
+      crowdAt(s - 8, -1, 10, 16);
+    });
+    let jumpCount = 0;
+    for (const f of c.features) {
+      if (f.type !== 'jump' || jumpCount++ % 2 === 1) continue;
+      crowdAt(f.s + 16, jumpCount % 4 === 1 ? 1 : -1, 9, 14, f.width / 2 - trailEdge + 2);
+    }
+    for (const side of [1, -1] as const) {
+      crowdAt(this.finishS - 40, side, 20, 30);
+      crowdAt(this.finishS - 95, side, 16, 26);
+    }
 
     // Features.
     for (const f of c.features) {
@@ -162,7 +193,25 @@ export class CourseProps {
     // Finish arch + village.
     {
       const i = at(this.finishS);
-      add(c.x[i]!, h(c.x[i]!, c.z[i]!) - 0.5, c.z[i]!, headingAt(i), 0, () => finishArch(c.hw[i]! * 2 + 10, primaryColor));
+      add(c.x[i]!, h(c.x[i]!, c.z[i]!) - 0.2, c.z[i]!, headingAt(i), 0, () => eventArch((TERRAIN.trailHalfWidth + TERRAIN.trailShoulder) * 2 + 8, 'FINISH', '#0d1b2a', primaryColor, true));
+      // Tents and flags around the finish line.
+      const finishColors = [primaryColor, '#3ec8ff', '#ffd23f', '#4ade80'];
+      for (let k = 0; k < 6; k++) {
+        const side = k % 2 === 0 ? 1 : -1;
+        const j = at(this.finishS + 8 + Math.floor(k / 2) * 6);
+        const off = (TERRAIN.trailHalfWidth + TERRAIN.trailShoulder + 9) * side;
+        const tx = c.x[j]! - c.tz[j]! * off;
+        const tz = c.z[j]! + c.tx[j]! * off;
+        add(tx, h(tx, tz), tz, headingAt(j), 0, () => popupTent(finishColors[k % finishColors.length]!));
+      }
+      for (let k = 0; k < 10; k++) {
+        const side = k % 2 === 0 ? 1 : -1;
+        const j = at(this.finishS - 60 + Math.floor(k / 2) * 14);
+        const off = (TERRAIN.trailHalfWidth + TERRAIN.trailShoulder + 1.5) * side;
+        const fx = c.x[j]! - c.tz[j]! * off;
+        const fz = c.z[j]! + c.tx[j]! * off;
+        add(fx, h(fx, fz), fz, headingAt(j) + (side > 0 ? Math.PI : 0), 0, () => featherFlag(finishColors[k % finishColors.length]!));
+      }
       const rng = makeRng(`${sampler.map.seed}:village`);
       const walls = sampler.biome.id === 'snow' ? ['#a0522d', '#8b5a3c', '#c2a27c', '#7a4a2c'] : ['#f1e4c8', '#e6d2a8', '#c9b48e', '#f4efe2'];
       const roofs = sampler.biome.id === 'snow' ? ['#e8eef5', '#dfe7ef'] : ['#a33b2b', '#7e2f24', '#4f4f55'];
@@ -206,6 +255,14 @@ export class CourseProps {
         this.physics.world.removeRigidBody(it.live.body);
         it.live.body = null;
       }
+    }
+  }
+
+  /** Per-frame: animate spawned structures that want it (cheering crowds). */
+  animate(dt: number, focusGlobal: THREE.Vector3): void {
+    for (const it of this.items) {
+      const tick = it.live?.s.tick;
+      if (tick) tick(dt, Math.hypot(it.x - focusGlobal.x, it.z - focusGlobal.z));
     }
   }
 

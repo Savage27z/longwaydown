@@ -94,11 +94,9 @@ export class PlayMode implements GameMode {
   }
 
   static async create(game: Game, mapId: MapId, progress: ProgressFn): Promise<PlayMode> {
-    const riders = loadRiderPack(RIDER_ASSET.url);
-    // Props are built with the world, so the nature kit has to be in first.
-    await loadNatureKit(NATURE_ASSET.url);
+    // Props (trees, crowds of riders-pack spectators) are built with the world: load both packs first.
+    await Promise.all([loadRiderPack(RIDER_ASSET.url), loadNatureKit(NATURE_ASSET.url)]);
     const world = await World.create(mapId, game.renderer, game.physics, game.graphics, progress);
-    await riders;
     return new PlayMode(game, world);
   }
 

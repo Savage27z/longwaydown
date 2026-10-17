@@ -20,6 +20,8 @@ export interface Structure {
   colliders: ColliderSpec[];
   /** Materials created specifically for this structure (disposed with it). */
   ownMaterials?: THREE.Material[];
+  /** Per-frame animation while spawned (e.g. a cheering crowd); `distance` to the rider (m). */
+  tick?: (dt: number, distance: number) => void;
 }
 
 let sharedMat: THREE.MeshLambertMaterial | null = null;
@@ -39,7 +41,7 @@ function mesh(geo: THREE.BufferGeometry, cast = true): THREE.Mesh {
   return m;
 }
 
-function box(w: number, h: number, d: number, color: THREE.ColorRepresentation, x = 0, y = 0, z = 0): THREE.BufferGeometry {
+export function box(w: number, h: number, d: number, color: THREE.ColorRepresentation, x = 0, y = 0, z = 0): THREE.BufferGeometry {
   return paint(translate(new THREE.BoxGeometry(w, h, d), x, y, z), color);
 }
 
@@ -134,62 +136,6 @@ export function tunnelShell(length: number, radius: number, wallColor: string): 
   const indices = new Uint32Array(pos.count);
   for (let i = 0; i < pos.count; i++) indices[i] = i;
   return { object, colliders: [{ type: 'trimesh', vertices, indices, pos: [0, 0, 0] }], ownMaterials: [m.material as THREE.Material, lightMat] };
-}
-
-/** Start area: deck, gate with banner, hut, flags. */
-export function startArea(primary: string): Structure {
-  const parts: THREE.BufferGeometry[] = [];
-  parts.push(box(26, 1, 30, '#8b6a4a', 0, -0.4, -6));
-  // Gate posts + banner.
-  parts.push(box(1, 7, 1, '#2b3442', 9, 3.5, 4));
-  parts.push(box(1, 7, 1, '#2b3442', -9, 3.5, 4));
-  parts.push(box(19, 2, 0.4, primary, 0, 6.6, 4));
-  parts.push(box(17, 0.4, 0.5, '#ffffff', 0, 5.4, 4));
-  // Hut.
-  parts.push(box(8, 4.5, 7, '#a0522d', 13, 2.25, -14));
-  const roof = new THREE.ConeGeometry(6.4, 3.2, 4);
-  roof.rotateY(Math.PI / 4);
-  roof.scale(1, 1, 0.9);
-  parts.push(paint(translate(roof, 13, 6.1, -14), '#e8eef5'));
-  parts.push(box(1.6, 2.6, 0.2, '#3a2a1e', 13, 1.3, -10.4));
-  // Flags.
-  const flagColors = [primary, '#ffd23f', '#3ec8ff', '#4ade80', '#ff4d6d'];
-  for (let i = 0; i < 10; i++) {
-    const side = i % 2 === 0 ? 1 : -1;
-    const z = -16 + Math.floor(i / 2) * 6;
-    parts.push(box(0.15, 5, 0.15, '#dfe6ee', side * 14, 2.5, z));
-    parts.push(box(0.1, 1.2, 1.8, flagColors[i % flagColors.length]!, side * 14, 4.3, z + 0.95));
-  }
-  const object = new THREE.Group();
-  object.add(mesh(merge(parts)));
-  return {
-    object,
-    colliders: [
-      { type: 'cuboid', half: [13, 0.5, 15], pos: [0, -0.4, -6] },
-      { type: 'cuboid', half: [4, 2.25, 3.5], pos: [13, 2.25, -14] },
-      { type: 'cylinder', halfHeight: 3.5, radius: 0.6, pos: [9, 3.5, 4] },
-      { type: 'cylinder', halfHeight: 3.5, radius: 0.6, pos: [-9, 3.5, 4] },
-    ],
-  };
-}
-
-/** Finish arch spanning the line. */
-export function finishArch(span: number, primary: string): Structure {
-  const R = span / 2;
-  const t = new THREE.TorusGeometry(R, 1.4, 6, 24, Math.PI);
-  t.scale(1, 0.55, 1);
-  const object = new THREE.Group();
-  const stripes = [new THREE.Color(primary), new THREE.Color('#ffffff')];
-  object.add(mesh(merge([paintFaces(t, (x, _y, _z, _f, out) => out.copy(stripes[Math.abs(Math.floor((x + R) / 3)) % 2]!))])));
-  const banner = box(span * 0.5, 2.4, 0.4, '#0d1b2a', 0, R * 0.55 - 0.6, 0);
-  object.add(mesh(merge([banner])));
-  return {
-    object,
-    colliders: [
-      { type: 'cylinder', halfHeight: 3, radius: 1.5, pos: [R, 2, 0] },
-      { type: 'cylinder', halfHeight: 3, radius: 1.5, pos: [-R, 2, 0] },
-    ],
-  };
 }
 
 /** Small chalet/house. */
@@ -298,40 +244,3 @@ export function waterPlane(width: number, length: number, color: string): Struct
   return { object, colliders: [], ownMaterials: [mat] };
 }
 
-/** Checkpoint gate: two inflatable-style posts and a banner reading "CHECKPOINT n". */
-export function checkpointGate(span: number, index: number, color: string): Structure {
-  const parts: THREE.BufferGeometry[] = [];
-  const half = span / 2;
-  for (const side of [-1, 1]) {
-    parts.push(paint(translate(new THREE.CylinderGeometry(0.55, 0.7, 7, 10), side * half, 3.5, 0), color));
-    parts.push(paint(translate(new THREE.SphereGeometry(0.6, 10, 6), side * half, 7.1, 0), '#ffffff'));
-  }
-  const object = new THREE.Group();
-  object.add(mesh(merge(parts)));
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 96;
-  const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = color;
-  ctx.fillRect(0, 0, 512, 96);
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'italic 900 56px Arial Black, Arial, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(`CHECKPOINT ${index}`, 256, 50);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
-  const banner = new THREE.Mesh(new THREE.PlaneGeometry(span, span * (96 / 512)), mat);
-  banner.position.y = 6.2;
-  banner.rotation.y = Math.PI;
-  object.add(banner);
-  return {
-    object,
-    colliders: [
-      { type: 'cylinder', halfHeight: 3.5, radius: 0.65, pos: [half, 3.5, 0] },
-      { type: 'cylinder', halfHeight: 3.5, radius: 0.65, pos: [-half, 3.5, 0] },
-    ],
-    ownMaterials: [mat],
-  };
-}
