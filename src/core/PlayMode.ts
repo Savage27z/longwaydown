@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CAMERA, CAMERA_VIEW_LABELS } from '../config/camera';
 import { RUN, SWITCH } from '../config/gameplay';
 import type { MapId } from '../config/maps';
+import { NATURE_ASSET } from '../config/assets';
 import { RIDER_ASSET } from '../config/riders';
 import { SURFACE_PHYSICS } from '../config/surfaces';
 import { VEHICLE_IDS, type VehicleId } from '../config/vehicles';
@@ -11,6 +12,7 @@ import { Puff } from '../fx/Puff';
 import { SpeedLines } from '../fx/SpeedLines';
 import { Run } from '../gameplay/Run';
 import { loadRiderPack } from '../models/ModelLoader';
+import { loadNatureKit } from '../models/NatureKit';
 import { PlayerController } from '../player/PlayerController';
 import { HUD } from '../ui/HUD';
 import { keyLabel } from '../ui/SettingsScreen';
@@ -93,6 +95,8 @@ export class PlayMode implements GameMode {
 
   static async create(game: Game, mapId: MapId, progress: ProgressFn): Promise<PlayMode> {
     const riders = loadRiderPack(RIDER_ASSET.url);
+    // Props are built with the world, so the nature kit has to be in first.
+    await loadNatureKit(NATURE_ASSET.url);
     const world = await World.create(mapId, game.renderer, game.physics, game.graphics, progress);
     await riders;
     return new PlayMode(game, world);

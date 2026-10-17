@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { getNatureKit } from '../models/NatureKit';
 import type { GraphicsSettings } from '../config/graphics';
 import type { MapId } from '../config/maps';
 import { WORLD } from '../config/world';
@@ -46,7 +47,7 @@ export class World {
     this.sky = new Sky(renderer.scene, this.sampler.biome, graphics);
     this.sky.ringBase = this.course.finishElevation + 600;
     this.renderer.renderer.toneMappingExposure = this.sampler.biome.sky.exposure;
-    this.props = new PropLibrary(this.sampler.biome);
+    this.props = new PropLibrary(this.sampler.biome, getNatureKit());
     this.chunks = new ChunkManager(mapId, this.sampler, physics, renderer.worldRoot, this.props, this.origin.origin, graphics);
     this.courseProps = new CourseProps(this.sampler, renderer.worldRoot, physics, this.origin.origin);
   }

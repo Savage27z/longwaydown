@@ -129,13 +129,13 @@ export class ChunkManager {
       const running = this.pool.runningLod(k);
       if (running !== undefined && running <= w.lod) continue;
       if (this.ready.some((r) => r.ix === w.ix && r.iz === w.iz && r.lod <= w.lod)) continue;
-      jobs.push({ id: this.nextId++, ix: w.ix, iz: w.iz, lod: w.lod, treeDensity: this.graphics.treeDensity, priority: w.priority });
+      jobs.push({ id: this.nextId++, ix: w.ix, iz: w.iz, lod: w.lod, treeDensity: this.graphics.treeDensity, grassDensity: this.graphics.grassDensity, priority: w.priority });
     }
     // Downgrade far LOD0 tiles to save triangles/colliders.
     for (const [k, t] of this.tiles) {
       const w = want.get(k);
       if (t.lod === 0 && w && w.lod === 1 && this.pool.runningLod(k) === undefined) {
-        jobs.push({ id: this.nextId++, ix: t.ix, iz: t.iz, lod: 1, treeDensity: this.graphics.treeDensity, priority: 2000 });
+        jobs.push({ id: this.nextId++, ix: t.ix, iz: t.iz, lod: 1, treeDensity: this.graphics.treeDensity, grassDensity: this.graphics.grassDensity, priority: 2000 });
       }
     }
     jobs.sort((a, b) => a.priority - b.priority);

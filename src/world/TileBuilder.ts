@@ -1,14 +1,20 @@
 import { TERRAIN } from '../config/terrain';
+import { SURFACE_INDEX } from '../config/surfaces';
 import { WORLD } from '../config/world';
+import { smoothstep } from '../utils/math';
 import { hash3 } from '../utils/rng';
 import { emptyFields, type CourseFields } from './CourseQuery';
 import type { TerrainSampler } from './TerrainSampler';
 
 /** Prop kinds scattered per tile (the main thread maps these to instanced meshes). */
-export const PROP_KINDS = ['tree', 'rock', 'pole', 'bush', 'pebble'] as const;
+/** Prop arrays per tile, in this order (append only: indices are referenced by kind). */
+export const PROP_KINDS = ['tree', 'rock', 'pole', 'bush', 'pebble', 'grass'] as const;
 export type PropKind = (typeof PROP_KINDS)[number];
 /** Floats per prop instance: x, y, z (tile-local), rotY, scale, variant. */
 export const PROP_STRIDE = 6;
+/** Tree variants carry +HERO_FLAG when within HERO_TREE_REACH m of the trail shoulder. */
+export const HERO_FLAG = 2;
+const HERO_TREE_REACH = 35;
 
 export interface TileRequest {
   id: number;
@@ -16,6 +22,8 @@ export interface TileRequest {
   iz: number;
   lod: number;
   treeDensity: number;
+  /** 0..1 graphics multiplier for grass and flower clumps. */
+  grassDensity: number;
 }
 
 export interface TileResult {
@@ -177,7 +185,10 @@ function scatterProps(sampler: TerrainSampler, req: TileRequest, x0: number, z0:
       const slope = slopeAt(x, z, h);
       const dens = sampler.treeDensity(x, z, F, h, slope) * req.treeDensity;
       if (r0 / 0.75 < dens) {
-        const variant = hash3(cx, cz, 4, seed);
+        // Trees close to the trail are "hero" trees (detailed models up close): flagged by +2 on the variant.
+        // (Not on the Low preset: detailed trees are the heaviest thing on screen.)
+        const hero = req.treeDensity >= 0.7 && F.d < TERRAIN.trailHalfWidth + TERRAIN.trailShoulder + HERO_TREE_REACH ? HERO_FLAG : 0;
+        const variant = hash3(cx, cz, 4, seed) + hero;
         push(0, x, h, z, hash3(cx, cz, 5, seed) * Math.PI * 2, 0.75 + hash3(cx, cz, 6, seed) * 0.7, variant);
       } else if (r0 / 0.75 < dens * 1.25 + 0.01) {
         push(3, x, h, z, hash3(cx, cz, 5, seed) * Math.PI * 2, 0.6 + hash3(cx, cz, 6, seed) * 0.6, hash3(cx, cz, 4, seed));
@@ -198,6 +209,30 @@ function scatterProps(sampler: TerrainSampler, req: TileRequest, x0: number, z0:
       const slope = slopeAt(x, z, h);
       if (r0 < sampler.rockDensity(F, slope) * 0.6) {
         push(1, x, h - 0.4, z, hash3(cx, cz, 14, seed) * Math.PI * 2, 0.7 + Math.pow(hash3(cx, cz, 15, seed), 2) * 2.6, hash3(cx, cz, 16, seed));
+      }
+    }
+  }
+
+  // Grass and flower clumps along the trail on grassy ground (alpine maps).
+  if (sampler.biome.id === 'alpine' && req.grassDensity > 0) {
+    const gc = 3.2;
+    const edge = TERRAIN.trailHalfWidth + TERRAIN.trailShoulder * 0.5;
+    const GRASS = SURFACE_INDEX.grass;
+    for (let cz = Math.floor(z0 / gc); cz < Math.floor((z0 + S) / gc); cz++) {
+      for (let cx = Math.floor(x0 / gc); cx < Math.floor((x0 + S) / gc); cx++) {
+        const r0 = hash3(cx, cz, 31, seed);
+        if (r0 > req.grassDensity * 0.8) continue;
+        const x = (cx + hash3(cx, cz, 32, seed)) * gc;
+        const z = (cz + hash3(cx, cz, 33, seed)) * gc;
+        if (x < x0 || x >= x0 + S || z < z0 || z >= z0 + S) continue;
+        sampler.fieldsAt(x, z, F);
+        // A thick band right along the trail, thinning out over ~25 m.
+        if (F.d < edge || F.d > edge + 26) continue;
+        if (r0 > req.grassDensity * 0.8 * (1 - smoothstep(edge + 4, edge + 26, F.d))) continue;
+        const h = sampler.heightWith(x, z, F);
+        const slope = slopeAt(x, z, h);
+        if (sampler.surfaceWith(x, z, F, h, slope) !== GRASS) continue;
+        push(5, x, h - 0.05, z, hash3(cx, cz, 34, seed) * Math.PI * 2, 0.8 + hash3(cx, cz, 35, seed) * 0.7, hash3(cx, cz, 36, seed));
       }
     }
   }
