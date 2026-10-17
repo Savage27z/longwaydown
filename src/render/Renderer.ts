@@ -36,15 +36,16 @@ export class Renderer {
       logarithmicDepthBuffer: !clipControl,
     });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMapping = THREE.NeutralToneMapping;
+    this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = settings.shadows;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.info.autoReset = false;
 
     this.camera = new THREE.PerspectiveCamera(70, 1, WORLD.cameraNear, WORLD.cameraFar);
     this.worldRoot.name = 'worldRoot';
-    this.worldRoot.matrixAutoUpdate = true;
+    // Static content: matrices are recomputed only on origin shifts (see FloatingOrigin).
+    this.worldRoot.matrixAutoUpdate = false;
     this.scene.add(this.worldRoot);
     this.scene.add(this.camera);
 

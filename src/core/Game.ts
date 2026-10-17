@@ -1,4 +1,5 @@
 import { GRAPHICS_PRESETS, type GraphicsSettings, type QualityPreset } from '../config/graphics';
+import type { MapId } from '../config/maps';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { Renderer } from '../render/Renderer';
 import { events } from './Events';
@@ -18,6 +19,8 @@ export interface GameMode {
   dispose(): void;
   /** Optional dev hook: config objects to expose in the lil-gui panel. */
   devTuning?(): Record<string, Record<string, unknown>>;
+  /** Optional dev hook: extra lines for the stats overlay. */
+  devStats?(): Record<string, string>;
 }
 
 export type ProgressFn = (p: number, msg: string) => void;
@@ -55,10 +58,16 @@ export class Game {
   }
 
   async init(progress: ProgressFn): Promise<void> {
-    progress(0.6, 'Building test slope…');
-    const { TestScene } = await import('../dev/TestScene');
-    this.mode = new TestScene(this);
-    progress(1, 'Ready');
+    const params = new URLSearchParams(location.search);
+    if (import.meta.env.DEV && params.get('scene') === 'test') {
+      const { TestScene } = await import('../dev/TestScene');
+      this.mode = new TestScene(this);
+      progress(1, 'Ready');
+      return;
+    }
+    const map = (params.get('map') === 'greenRidge' ? 'greenRidge' : 'snowPeak') as MapId;
+    const { PlayMode } = await import('./PlayMode');
+    this.mode = await PlayMode.create(this, map, progress);
   }
 
   start(): void {

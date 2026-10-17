@@ -24,3 +24,16 @@ export function shared<T extends THREE.BufferGeometry | THREE.Material>(thing: T
   thing.userData.shared = true;
   return thing;
 }
+
+/**
+ * Add a static object (never moves relative to its parent) under a parent. Matrices are
+ * computed once; the parent forcing an update (origin shift) still propagates.
+ */
+export function addStatic(parent: THREE.Object3D, obj: THREE.Object3D): void {
+  obj.traverse((o) => {
+    o.matrixAutoUpdate = false;
+    o.updateMatrix();
+  });
+  parent.add(obj);
+  obj.updateMatrixWorld(true);
+}

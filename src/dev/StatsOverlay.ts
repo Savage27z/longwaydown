@@ -36,6 +36,8 @@ export class StatsOverlay {
       mem ? `heap ${(mem.usedJSHeapSize / 1048576).toFixed(0)} MB` : 'heap n/a',
     ];
     for (const [k, fn] of this.extra) lines.push(`${k} ${fn()}`);
+    const modeStats = this.game.mode?.devStats?.() ?? {};
+    for (const [k, v] of Object.entries(modeStats)) lines.push(`${k} ${v}`);
     this.el.textContent = lines.join('\n');
     this.frames = 0;
     this.acc = 0;

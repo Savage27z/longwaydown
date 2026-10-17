@@ -60,12 +60,20 @@ export class DevTools {
     return f;
   }
 
-  /** Add every numeric/boolean field of a plain config object as controllers. */
+  /**
+   * Add every numeric/boolean/function field of a plain config object as controllers.
+   * An optional `__ranges` field maps keys to [min, max, step].
+   */
   addConfig(folderName: string, obj: Record<string, unknown>, ranges: Record<string, [number, number, number?]> = {}): GUI {
     const f = this.folder(folderName);
+    const r2 = { ...((obj.__ranges as Record<string, [number, number, number?]>) ?? {}), ...ranges };
+    ranges = r2;
     for (const key of Object.keys(obj)) {
+      if (key.startsWith('__')) continue;
       const v = obj[key];
-      if (typeof v === 'number') {
+      if (typeof v === 'function') {
+        f.add(obj, key);
+      } else if (typeof v === 'number') {
         const r = ranges[key];
         if (r) f.add(obj, key, r[0], r[1], r[2]);
         else f.add(obj, key);

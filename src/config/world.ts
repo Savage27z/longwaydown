@@ -15,16 +15,16 @@ export const WORLD = {
   chunksAhead: 3,
   chunksBehind: 1,
   /** Corridor padding when picking spline tiles (m beyond the corridor half-width). */
-  corridorTilePad: 160,
+  corridorTilePad: 60,
   /** Everything within this radius of the player also gets LOD0 + physics (m). */
-  physicsRadius: 300,
+  physicsRadius: 260,
   /** Skirt depth below tile edges to hide LOD cracks (m). */
   skirtDepth: 12,
   /** Max tile builds to finalize per frame (mesh uploads + colliders). */
   buildsPerFrame: 2,
   /** Backdrop: grid spacing and margin around the course bounds (m). */
-  backdropSpacing: 64,
-  backdropMargin: 8000,
+  backdropSpacing: 80,
+  backdropMargin: 6000,
   cameraNear: 0.3,
   cameraFar: 30000,
 };
