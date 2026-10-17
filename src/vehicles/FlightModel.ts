@@ -1,17 +1,24 @@
 import * as THREE from 'three';
 import type { FlightStats } from '../config/vehicles';
 import { clamp, damp, wrapAngle } from '../utils/math';
-import type { RideModifiers, VehicleInput } from './Vehicle';
+import type { VehicleInput } from './Vehicle';
 
 const _fwd = new THREE.Vector3();
 const _axis = new THREE.Vector3();
+const _e = new THREE.Euler();
 
 /**
- * Arcade flight shared by the hover car and the jet. Owns pitch/bank and a 0..1 meter
- * (flight energy / fuel). The vehicle owns heading and the rigid body.
+ * Arcade flight shared by every flyer (hover car, jet, wingsuit). Attitude control rather than
+ * rate control: the stick commands a nose angle and a bank, and both settle back to neutral
+ * when released, so you can't end up in an unrecoverable dive by holding a key too long.
  *
- * Controls: W thrust, S air-brake, A/D yaw (banks), arrows pitch (up = nose down),
- * Space climbs, Shift boosts.
+ *   A / D        bank and turn (coordinated: the turn rate follows the bank)
+ *   W / ↑        dive (gain speed)        S / ↓   pull up / flare (trade speed for height)
+ *   Shift        thrust (powered flyers, uses the meter)
+ *   Space        climb (hover car, uses the meter)
+ *
+ * Assists: stall recovery (nose down when too slow) and a gentle nose-up just above the terrain.
+ * The vehicle owns heading and the rigid body; this owns pitch, bank and the 0..1 meter.
  */
 export class FlightModel {
   pitch = 0;
@@ -22,31 +29,39 @@ export class FlightModel {
   constructor(private readonly stats: () => FlightStats) {}
 
   /** Returns the new heading. Mutates `v` (world velocity). */
-  step(dt: number, input: VehicleInput, v: THREE.Vector3, heading: number, heightAboveGround: number, mods: RideModifiers, boostAccel: number): number {
+  step(dt: number, input: VehicleInput, v: THREE.Vector3, heading: number, heightAboveGround: number): number {
     const f = this.stats();
-    // Yaw + bank.
-    const yawRate = -input.steer * f.yawRate;
-    heading = wrapAngle(heading + yawRate * dt);
-    this.bank = damp(this.bank, clamp(input.steer * f.bankMax, -f.bankMax, f.bankMax), 4, dt);
-    // Pitch: Space climbs, arrows pitch (forward = nose down); level out when idle.
-    const pitchIn = (input.jumpHeld ? 1 : 0) - input.pitch;
-    if (Math.abs(pitchIn) > 0.05) this.pitch = clamp(this.pitch + pitchIn * f.pitchRate * dt, -1.1, 1.0);
-    else this.pitch = damp(this.pitch, 0, 0.8, dt);
-
     const speed = v.length();
+
+    // Bank and a coordinated turn.
+    this.bank = damp(this.bank, clamp(input.steer, -1, 1) * f.bankMax, f.bankResponse, dt);
+    heading = wrapAngle(heading - (this.bank / f.bankMax) * f.yawRate * dt);
+
+    // Attitude: W/↑ dive, S/↓ climb, neutral when released, plus assists.
+    const dive = Math.max(input.throttle, Math.max(0, input.pitch));
+    const climb = Math.max(input.brake, Math.max(0, -input.pitch));
+    let target = f.neutralPitch + climb * f.pitchUp - dive * f.pitchDown;
+    const slow = f.stallSpeed * 1.15;
+    if (speed < slow) target = Math.min(target, f.neutralPitch - 0.3 * (1 - speed / slow));
+    if (heightAboveGround < f.groundAssist && v.y < 0) target = Math.max(target, f.neutralPitch + 0.3 * (1 - heightAboveGround / f.groundAssist));
+    this.pitch = damp(this.pitch, clamp(target, -1.2, 0.9), f.pitchResponse, dt);
     _fwd.set(Math.sin(heading) * Math.cos(this.pitch), Math.sin(this.pitch), Math.cos(heading) * Math.cos(this.pitch));
 
-    // Thrust (fades toward max speed), boost, air brake.
-    this.thrusting = input.throttle > 0.05 && this.meter > 0;
-    if (this.thrusting) {
+    // Thrust (Shift) and climb (Space) burn the meter.
+    this.thrusting = false;
+    if (f.thrust > 0 && input.boost && this.meter > 0) {
       const fade = Math.max(0, 1 - speed / f.maxSpeed);
-      v.addScaledVector(_fwd, f.thrust * input.throttle * (0.25 + 0.75 * fade) * dt);
-      this.meter = Math.max(0, this.meter - f.drain * dt * (0.3 + 0.7 * input.throttle));
+      v.addScaledVector(_fwd, f.thrust * (0.3 + 0.7 * fade) * dt);
+      this.meter = Math.max(0, this.meter - f.drain * dt);
+      this.thrusting = true;
     }
-    if (input.boost && mods.boostAvailable && this.meter > 0) v.addScaledVector(_fwd, boostAccel * dt);
-    if (input.brake > 0) v.multiplyScalar(1 - Math.min(0.5, input.brake * 0.9 * dt));
+    if (f.climb > 0 && input.jumpHeld && this.meter > 0) {
+      v.y += f.climb * dt;
+      this.meter = Math.max(0, this.meter - f.drain * 0.6 * dt);
+      this.thrusting = true;
+    }
 
-    // Lift: velocity swings toward the nose; gravity is partly cancelled with airspeed.
+    // Lift: the flight path swings toward the nose; part of gravity is cancelled with airspeed.
     const liftK = Math.min(1, (speed / f.stallSpeed) ** 2);
     if (speed > 0.5) {
       _axis.crossVectors(v, _fwd);
@@ -62,7 +77,6 @@ export class FlightModel {
     if (heightAboveGround > f.ceiling) {
       const over = heightAboveGround - f.ceiling;
       v.y -= Math.min(15, over * 0.6) * dt * 4;
-      this.pitch = damp(this.pitch, -0.3, 1.5, dt);
     }
     // Low gliding recharges (jet): only while not thrusting.
     if (f.lowGlideRecharge > 0 && !this.thrusting && heightAboveGround < f.lowGlideHeight) {
@@ -77,6 +91,6 @@ export class FlightModel {
 
   /** Visual orientation for flight (nose up = negative X rotation). */
   quaternion(heading: number, out: THREE.Quaternion): THREE.Quaternion {
-    return out.setFromEuler(new THREE.Euler(-this.pitch, heading, this.bank, 'YXZ'));
+    return out.setFromEuler(_e.set(-this.pitch, heading, this.bank, 'YXZ'));
   }
 }

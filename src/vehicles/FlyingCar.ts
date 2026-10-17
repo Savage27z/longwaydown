@@ -50,7 +50,7 @@ export class FlyingCar extends ArcadeVehicle {
     this.telemetry.flying = this.flying && !this.grounded;
   }
 
-  protected override flightStep(dt: number, input: VehicleInput, ctx: VehicleContext, v: THREE.Vector3): boolean {
+  protected override flightStep(dt: number, input: VehicleInput, _ctx: VehicleContext, v: THREE.Vector3): boolean {
     if (this.liftoff) {
       this.flying = true;
       this.liftoff = false;
@@ -61,7 +61,7 @@ export class FlyingCar extends ArcadeVehicle {
       return false;
     }
     const h = Number.isFinite(this.groundDistance) ? this.groundDistance : 200;
-    this.heading = this.flight.step(dt, input, v, this.heading, h, ctx.mods, this.stats.boostAccel);
+    this.heading = this.flight.step(dt, input, v, this.heading, h);
     this.gravityOverride = FLIGHT.flyingCar.gravity;
     // Flying drains the meter a little even without thrust (keeping the pads lit).
     this.flight.meter = Math.max(0, this.flight.meter - dt * 0.03);

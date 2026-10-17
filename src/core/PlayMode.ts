@@ -50,7 +50,7 @@ export class PlayMode implements GameMode {
   ) {
     const props = world.courseProps;
     this.spawnS = props.startS + RUN.spawnOffset;
-    this.player = new PlayerController(game, world, 'bicycle', this.spawnS);
+    this.player = new PlayerController(game, world, 'onFoot', this.spawnS);
     this.chase = new ChaseCamera(game.renderer.camera, game.input);
     this.flyCam = new FlyCam(game.renderer.camera, game.input, world);
     this.toast = new Toast(game.ui);
@@ -76,11 +76,15 @@ export class PlayMode implements GameMode {
     };
     this.offs.push(
       events.on('quality:change', () => world.setGraphics(game.graphics)),
-      events.on('player:land', (l) => this.chase.addTrauma(Math.min(0.7, Math.max(0, l.impact - 3) / 14))),
-      events.on('player:crash', () => this.chase.addTrauma(0.65)),
+      events.on('player:land', (l) => this.chase.addTrauma(Math.min(CAMERA.landingShakeMax, Math.max(0, l.impact - CAMERA.landingShakeFrom) / CAMERA.landingShakeRange))),
+      events.on('player:crash', () => this.chase.addTrauma(CAMERA.crashShake)),
       events.on('player:respawn', () => this.chase.snap()),
       events.on('run:state', ({ state }) => {
         if (state === 'countdown') this.chase.release();
+        if (state === 'running') this.toast.show('Run for the edge!  W sprint · Space jump', 3200);
+      }),
+      events.on('player:switch', ({ from, to }) => {
+        if (to === 'wingsuit' && from === 'onFoot') this.toast.show('Wingsuit!  W dive · S flare · A/D turn · hold Q for a vehicle', 4200);
       }),
       events.on('run:finish', () => (this.slowMo = RUN.finishSlowMo)),
     );
@@ -201,7 +205,8 @@ export class PlayMode implements GameMode {
     const input = this.game.input;
     this.switchCooldown = Math.max(0, this.switchCooldown - dt);
     const rs = this.run.state;
-    const canSwitch = this.game.state === 'playing' && this.player.state === 'riding' && (rs === 'intro' || rs === 'countdown' || rs === 'running');
+    // The run-up is on foot: the wheel opens once the rider is off the edge.
+    const canSwitch = this.game.state === 'playing' && this.player.state === 'riding' && rs === 'running' && this.player.vehicle.id !== 'onFoot';
     if (this.wheel.isOpen) {
       if (!canSwitch) {
         this.closeWheel(null);
@@ -213,7 +218,7 @@ export class PlayMode implements GameMode {
       this.wheel.update(Math.hypot(r.x, r.y) > SWITCH.stickDeadzone ? r : l);
       if (!input.isDown('vehicleWheel')) this.closeWheel(this.wheel.close(), true);
     } else if (canSwitch && input.framePressed('vehicleWheel') && this.switchCooldown <= 0) {
-      const slots = vehicleSlots(mapBiome(this.world));
+      const slots = vehicleSlots(mapBiome(this.world), this.player.heightAboveGround());
       this.wheel.open(this.player.vehicle.id, slots, keyLabel(input.keys.vehicleWheel[0] ?? 'KeyQ'));
       this.game.loop.timeScale = SWITCH.wheelTimeScale;
       events.emit('wheel:toggle', { open: true });
@@ -228,7 +233,6 @@ export class PlayMode implements GameMode {
     }
     if (pick && this.player.switchTo(pick)) {
       this.switchCooldown = SWITCH.cooldown;
-      this.chase.addTrauma(0.15);
     }
   }
 

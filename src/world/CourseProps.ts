@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { MAPS, type MapId } from '../config/maps';
 import { Group, groups, type PhysicsWorld } from '../physics/PhysicsWorld';
 import { R, type RapierNS } from '../physics/rapier';
 import { addStatic, disposeObject } from '../utils/dispose';
@@ -40,7 +41,8 @@ const PHYSICS_RADIUS = 380;
 export class CourseProps {
   private items: PropItem[] = [];
   private timer = 0;
-  readonly startS = 24;
+  /** Start gate: a short run-up before the summit edge. */
+  readonly startS: number;
   readonly finishS: number;
 
   constructor(
@@ -51,6 +53,7 @@ export class CourseProps {
     primaryColor = '#ff5a1f',
   ) {
     const c = sampler.course;
+    this.startS = MAPS[c.mapId as MapId].launch.edgeS - 40;
     this.finishS = c.length - 80;
     const at = (s: number) => Math.min(c.count - 1, Math.max(0, Math.round(s / c.step)));
     const headingAt = (i: number) => Math.atan2(c.tx[i]!, c.tz[i]!);
@@ -96,6 +99,13 @@ export class CourseProps {
           const lz = f.tx * (f.width / 2 + 1);
           const y = Math.min(h(f.x + lx, f.z + lz), h(f.x - lx, f.z - lz));
           add(f.x, y, f.z, heading, 0, () => lipFlags(f.width + 2, f.type === 'gap' ? '#ff4d6d' : '#ffd23f'));
+          break;
+        }
+        case 'launchEdge': {
+          // A red flag line just behind the lip of the summit.
+          const x = f.x - f.tx * 2;
+          const z = f.z - f.tz * 2;
+          add(x, h(x, z), z, heading, 0, () => lipFlags(f.width * 0.85, '#ff4d6d'));
           break;
         }
         case 'cliffDrop': {

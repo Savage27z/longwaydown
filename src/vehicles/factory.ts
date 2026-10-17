@@ -1,14 +1,16 @@
 import type { VehicleId } from '../config/vehicles';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { Bicycle } from './Bicycle';
-import { Car } from './Car';
+import { Buggy } from './Buggy';
 import { FlyingCar } from './FlyingCar';
 import { Jet } from './Jet';
 import { Motorbike } from './Motorbike';
 import { MountainBike } from './MountainBike';
+import { OnFoot } from './OnFoot';
 import { Skis } from './Skis';
 import { Snowboard } from './Snowboard';
 import type { TransferState, Vehicle } from './Vehicle';
+import { Wingsuit } from './Wingsuit';
 
 /** Create a vehicle by id. New vehicles register here. */
 export function createVehicle(id: VehicleId, physics: PhysicsWorld, state: TransferState): Vehicle {
@@ -20,7 +22,7 @@ export function createVehicle(id: VehicleId, physics: PhysicsWorld, state: Trans
     case 'motorbike':
       return new Motorbike(physics, state);
     case 'car':
-      return new Car(physics, state);
+      return new Buggy(physics, state);
     case 'flyingCar':
       return new FlyingCar(physics, state);
     case 'jet':
@@ -29,5 +31,9 @@ export function createVehicle(id: VehicleId, physics: PhysicsWorld, state: Trans
       return new Snowboard(physics, state);
     case 'skis':
       return new Skis(physics, state);
+    case 'wingsuit':
+      return new Wingsuit(physics, state);
+    case 'onFoot':
+      return new OnFoot(physics, state);
   }
 }

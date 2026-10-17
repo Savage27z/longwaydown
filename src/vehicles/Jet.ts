@@ -15,7 +15,6 @@ import type { TransferState, VehicleContext, VehicleInput } from './Vehicle';
 export class Jet extends ArcadeVehicle {
   private m: THREE.Object3D;
   readonly flight = new FlightModel(() => FLIGHT.jet);
-  private throttleIn = 0;
   private pitchIn = 0;
   private time = 0;
   private kick = 0;
@@ -28,7 +27,6 @@ export class Jet extends ArcadeVehicle {
   }
 
   protected override preStep(dt: number, input: VehicleInput): void {
-    this.throttleIn = input.throttle;
     this.pitchIn = input.pitch;
     if (this.grounded) {
       this.gravityOverride = null;
@@ -41,9 +39,9 @@ export class Jet extends ArcadeVehicle {
   }
 
   /** Always fly while airborne (gliding when out of fuel). */
-  protected override flightStep(dt: number, input: VehicleInput, ctx: VehicleContext, v: THREE.Vector3): boolean {
+  protected override flightStep(dt: number, input: VehicleInput, _ctx: VehicleContext, v: THREE.Vector3): boolean {
     const h = Number.isFinite(this.groundDistance) ? this.groundDistance : 200;
-    this.heading = this.flight.step(dt, input, v, this.heading, h, ctx.mods, this.stats.boostAccel);
+    this.heading = this.flight.step(dt, input, v, this.heading, h);
     this.gravityOverride = FLIGHT.jet.gravity;
     return true;
   }
@@ -60,12 +58,13 @@ export class Jet extends ArcadeVehicle {
   protected animate(dt: number): void {
     this.time += dt;
     // Legs scissor-kick: lazy while gliding, quicker under thrust; still on the ground.
-    const rate = 4.5 + this.throttleIn * 3.5;
-    const amp = this.grounded ? 0 : 0.05 + (1 - this.throttleIn) * 0.06;
+    const power = this.flight.thrusting ? 1 : 0;
+    const rate = 4.5 + power * 3.5;
+    const amp = this.grounded ? 0 : 0.05 + (1 - power) * 0.06;
     this.kick = damp(this.kick, Math.sin(this.time * rate) * amp, 12, dt);
     const ex = this.m.getObjectByName('exhaust');
     if (ex) {
-      const on = this.flight.meter > 0 ? 0.25 + this.throttleIn * 0.95 : 0.05;
+      const on = this.flight.thrusting ? 1.2 : this.flight.meter > 0 ? 0.25 : 0.05;
       const k = damp(ex.scale.z, on, 10, dt);
       ex.scale.set(1, 1, k);
       ex.visible = k > 0.08;

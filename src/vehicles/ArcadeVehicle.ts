@@ -107,14 +107,20 @@ export abstract class ArcadeVehicle extends Vehicle {
   }
 
   /** Subclass hook for special inputs (pedalling animation, carving, wheelies...). */
-  protected preStep(_dt: number, _input: VehicleInput): void {}
+  protected preStep(_dt: number, _input: VehicleInput, _ctx: VehicleContext): void {}
+
+  /** How much of the physical lean into turns is shown (bikes/boards lean in; cars roll on springs instead). */
+  protected leanFactor = 1;
+  /** Cars: brake from (near) standstill engages reverse, up to reverseMax (m/s). */
+  protected canReverse = false;
+  protected reverseMax = 7;
 
   fixedUpdate(dt: number, input: VehicleInput, ctx: VehicleContext): void {
     const s = this.stats;
     const phys = ctx.physics;
     const mods = ctx.mods;
     this.prevQuat.copy(this.currQuat);
-    this.preStep(dt, input);
+    this.preStep(dt, input, ctx);
     const t = this.body.translation();
     const lv = this.body.linvel();
     const v = this.v.set(lv.x, lv.y, lv.z);
@@ -291,7 +297,7 @@ export abstract class ArcadeVehicle extends Vehicle {
     this.r.crossVectors(f, n);
 
     // Carving: rotate planar velocity toward the heading, limited by grip (speed-preserving).
-    const gripG = (mods.gripOverride ? 1.6 : surfGrip) * s.grip * mods.gripMul;
+    const gripG = (mods.gripOverride ? 1.6 : surfGrip) * s.grip * mods.gripMul * this.gripMultiplier(input);
     if (spd > 0.3) {
       const sign = vt.dot(f) >= 0 ? 1 : -1;
       _x.copy(f).multiplyScalar(sign);
@@ -312,9 +318,12 @@ export abstract class ArcadeVehicle extends Vehicle {
     if (input.throttle > 0 && vf < prop) a += s.accel * input.throttle * Math.sqrt(Math.max(0, 1 - Math.max(0, vf) / prop));
     this.tuck = input.throttle > 0.5 && vf > prop * 0.9;
     if (this.telemetry.boosting) a += s.boostAccel;
+    // Reverse gear: brake held while (nearly) stopped or already rolling backwards.
+    const reversing = this.canReverse && input.brake > 0.1 && input.throttle < 0.1 && vf < 1;
+    if (reversing && vf > -this.reverseMax) a -= s.accel * 0.6 * input.brake;
     vt.addScaledVector(f, a * dt);
     vf = vt.dot(f);
-    const resist = rolling + softDrag * Math.abs(vf) + (input.brake > 0 ? s.brake * input.brake : 0);
+    const resist = rolling + softDrag * Math.abs(vf) + (input.brake > 0 && !reversing ? s.brake * input.brake : 0);
     if (Math.abs(vf) <= resist * dt) vt.addScaledVector(f, -vf);
     else vt.addScaledVector(f, -Math.sign(vf) * resist * dt);
 
@@ -330,6 +339,11 @@ export abstract class ArcadeVehicle extends Vehicle {
     this.telemetry.compression = clamp(comp / s.travel, 0, 1);
 
     v.copy(vt).addScaledVector(n, vn);
+  }
+
+  /** Subclass hook: lateral grip multiplier (handbrake drifts). */
+  protected gripMultiplier(_input: VehicleInput): number {
+    return 1;
   }
 
   /** Subclass hook: e.g. skis carve tighter when tucked. */
@@ -415,7 +429,7 @@ export abstract class ArcadeVehicle extends Vehicle {
     _m.makeBasis(_x, n, f);
     this.currQuat.setFromRotationMatrix(_m);
     const spd = this.telemetry.speed;
-    const targetLean = this.grounded ? clamp(-Math.atan2(spd * this.yawRate, 9.81), -0.75, 0.75) : 0;
+    const targetLean = this.grounded ? clamp(-Math.atan2(spd * this.yawRate, 9.81), -0.75, 0.75) * this.leanFactor : 0;
     this.lean = damp(this.lean, targetLean, 8, 1 / 60);
     _q.setFromEuler(_e.set(this.trickPitch + this.extraPitch, this.trickYaw, this.lean, 'YXZ'));
     this.currQuat.multiply(_q);

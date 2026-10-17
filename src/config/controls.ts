@@ -21,12 +21,12 @@ export const ACTIONS = [
 export type Action = (typeof ACTIONS)[number];
 
 export const ACTION_LABELS: Record<Action, string> = {
-  accelerate: 'Accelerate / Pedal',
-  brake: 'Brake / Reverse',
+  accelerate: 'Accelerate / Pedal · Dive (flying)',
+  brake: 'Brake / Reverse · Pull up (flying)',
   steerLeft: 'Steer Left',
   steerRight: 'Steer Right',
-  jump: 'Jump / Hop / Lift-off',
-  boost: 'Boost',
+  jump: 'Jump · Handbrake (buggy) · Lift-off',
+  boost: 'Boost · Thrust (flying)',
   trick: 'Trick / Grab',
   pitchForward: 'Air Pitch Forward',
   pitchBack: 'Air Pitch Back',

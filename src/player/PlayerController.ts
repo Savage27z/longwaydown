@@ -1,8 +1,9 @@
 import * as THREE from 'three';
-import { SWITCH } from '../config/gameplay';
+import { SWITCH, WINGSUIT_RULES } from '../config/gameplay';
+import { MAPS } from '../config/maps';
 import { SURFACE_PHYSICS } from '../config/surfaces';
 import { WORLD } from '../config/world';
-import { RIDING, type VehicleId } from '../config/vehicles';
+import { DEFAULT_GROUND_VEHICLE, RIDING, VEHICLES, type VehicleId } from '../config/vehicles';
 import { events } from '../core/Events';
 import type { Game } from '../core/Game';
 import { ProgressTracker } from '../world/CourseQuery';
@@ -13,6 +14,7 @@ import { defaultMods, emptyInput, type TransferState, type Vehicle, type Vehicle
 import { Character, makePose } from './Character';
 import { Ragdoll } from './Ragdoll';
 import { RiderDynamics, type MotionFrame } from './RiderDynamics';
+import { WingsuitMembrane } from './WingsuitMembrane';
 
 export type PlayerState = 'riding' | 'crashed';
 
@@ -33,6 +35,9 @@ export class PlayerController {
   readonly character = new Character();
   /** Body motion layered on top of the vehicle's pose. */
   readonly motion = new RiderDynamics();
+  readonly membrane: WingsuitMembrane;
+  /** Where a wingsuit landing hands over to: the last ground vehicle ridden. */
+  lastGround: VehicleId = DEFAULT_GROUND_VEHICLE;
   readonly progress: ProgressTracker;
   readonly input = emptyInput();
   readonly ctx: VehicleContext;
@@ -68,6 +73,7 @@ export class PlayerController {
     this.progress.reset(spawnS);
     this.vehicle = createVehicle(vehicleId, game.physics, this.spawnState(spawnS, 0));
     this.attachVehicle(this.vehicle);
+    this.membrane = new WingsuitMembrane(this.character.binding);
     this.offShift = events.on('origin:shift', ({ dx, dy, dz }) => {
       this.vehicle.shiftOrigin(dx, dy, dz);
       this.ragdoll?.shiftOrigin(dx, dy, dz);
@@ -94,9 +100,16 @@ export class PlayerController {
     v.hooks.onTakeoff = () => events.emit('player:takeoff', {});
   }
 
-  /** Swap the ridden vehicle in place (keeps position, heading and most of the speed). */
-  switchTo(id: VehicleId): boolean {
+  /** Ground vehicles a wingsuit landing can hand over to. */
+  private static readonly GROUND = new Set<VehicleId>(['bicycle', 'mountainBike', 'motorbike', 'car', 'snowboard', 'skis']);
+
+  /**
+   * Swap the ridden vehicle in place (keeps position, heading and most of the speed).
+   * `silent`: no hop, pop or switch event (resets, the race start).
+   */
+  switchTo(id: VehicleId, opts: { silent?: boolean; hop?: boolean } = {}): boolean {
     if (this.state !== 'riding' || id === this.vehicle.id) return false;
+    if (PlayerController.GROUND.has(id)) this.lastGround = id;
     const from = this.vehicle.id;
     // Detach the rider first: disposing the old vehicle disposes everything under its model.
     this.character.root.removeFromParent();
@@ -105,12 +118,32 @@ export class PlayerController {
     } finally {
       this.attachVehicle(this.vehicle);
     }
-    this.popT = 0;
     this.motion.reset();
-    this.motion.hop();
+    if (opts.silent) return true;
+    this.popT = 0;
+    if (opts.hop ?? true) this.motion.hop();
     const p = this.vehicle.transfer().position;
     events.emit('player:switch', { from, to: id, position: { x: p.x, y: p.y, z: p.z } });
     return true;
+  }
+
+  /** Vehicle body height above the terrain under it (m). */
+  heightAboveGround(): number {
+    const v = this.vehicle;
+    if (v.telemetry.grounded) return 0;
+    const t = v.body.translation();
+    return t.y - this.world.groundLocal(t.x, t.z) - v.stats.rideHeight;
+  }
+
+  /** The ground vehicle a wingsuit lands on (respects snow-only rules). */
+  private landingVehicle(): VehicleId {
+    const id = this.lastGround;
+    return VEHICLES[id].snowOnly && MAPS[this.world.mapId].biome !== 'snow' ? DEFAULT_GROUND_VEHICLE : id;
+  }
+
+  /** Race start: the summit plateau (before the edge) is walked, not ridden. */
+  private onPlateau(s: number): boolean {
+    return s < MAPS[this.world.mapId].launch.edgeS - 2;
   }
 
   /** Absorb-able crash entry point. Returns true if the crash was ignored. */
@@ -132,9 +165,12 @@ export class PlayerController {
     const c = this.world.course;
     const sClamped = Math.max(5, Math.min(c.length - 5, s));
     this.progress.reset(sClamped);
+    this.state = 'riding';
+    if (this.onPlateau(sClamped) && this.vehicle.id !== 'onFoot') this.switchTo('onFoot', { silent: true });
+    // A wingsuit can't stand on the ground: respawn on the ground vehicle instead.
+    else if (!this.onPlateau(sClamped) && (this.vehicle.id === 'wingsuit' || this.vehicle.id === 'onFoot')) this.switchTo(this.landingVehicle(), { silent: true });
     this.vehicle.place(this.spawnState(sClamped, speed));
     this.motion.reset();
-    this.state = 'riding';
     this.stuckTimer = 0;
     events.emit('player:respawn', { reason });
   }
@@ -195,11 +231,23 @@ export class PlayerController {
       const tel = v.telemetry;
       const gravity = -WORLD.gravity * v.body.gravityScale();
       this.motion.step(dt, v.id, v.body.linvel(), v.renderQuaternion(_q), gravity, tel.grounded, SURFACE_PHYSICS[tel.surface].rough, tel.speed);
-      this.checkResets(dt);
+      this.wingsuitRules();
+      if (this.state === 'riding') this.checkResets(dt);
     } else if (this.ragdoll) {
       this.ragdoll.afterStep(dt);
       this.crashTimer += dt;
       if (this.crashTimer >= RIDING.crashDuration) this.respawnAt(this.progress.result.s + 4, RIDING.respawnSpeed, 'crash');
+    }
+  }
+
+  /** Off the edge on foot: the suit deploys. A wingsuit that touches down hands over to a ground vehicle. */
+  private wingsuitRules(): void {
+    const v = this.vehicle;
+    if (v.id === 'onFoot' && !v.telemetry.grounded) {
+      const h = this.heightAboveGround();
+      if (h > WINGSUIT_RULES.autoDeployHeight || (this.input.jumpPressed && h > WINGSUIT_RULES.manualDeployHeight)) this.switchTo('wingsuit', { hop: false });
+    } else if (v.id === 'wingsuit' && v.telemetry.grounded) {
+      this.switchTo(this.landingVehicle());
     }
   }
 
@@ -232,13 +280,15 @@ export class PlayerController {
     if (this.state === 'riding') {
       this.vehicle.pose(this.pose, this.input);
       this.motion.apply(this.pose, dt, this.motionFrame());
-      this.character.update(dt, this.pose);
+      // Running is a fast cycle: follow it tightly.
+      this.character.update(dt, this.pose, this.vehicle.id === 'onFoot' ? 30 : 14);
     } else if (this.ragdoll) {
       this.ragdoll.render(dt, alpha);
       const fade = (this.crashTimer - (RIDING.crashDuration - 0.6)) / 0.6;
       this.character.setOpacity(Math.max(0, Math.min(1, 1 - fade)));
     }
     this.character.setHeadVisible(this.headVisible);
+    this.membrane.update(this.state === 'riding' && this.vehicle.id === 'wingsuit', dt);
   }
 
   private frame: MotionFrame | null = null;
@@ -277,6 +327,7 @@ export class PlayerController {
   dispose(): void {
     this.offShift();
     this.endRagdoll();
+    this.membrane.dispose();
     this.character.root.removeFromParent();
     this.vehicle.dispose(this.game.physics);
     this.character.dispose();

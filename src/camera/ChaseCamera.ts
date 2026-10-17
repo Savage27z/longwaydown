@@ -187,7 +187,7 @@ export class ChaseCamera {
     _look.copy(cam.position).addScaledVector(_fwd, 12);
     _look.addScaledVector(_up, -2.7 - this.orbitPitch * 6);
     cam.up.set(0, 1, 0).lerp(_up, 0.45).normalize();
-    this.applyShake(dt * 1.5);
+    this.applyShake(dt * 1.5, CAMERA.firstPersonShake);
     cam.lookAt(_look);
     this.setFov(dt, CAMERA.firstPersonFov + (CAMERA.firstPersonFovPerSpeed * kmh) / 100, CAMERA.firstPersonFov + 20);
     this.primed = true;
@@ -213,12 +213,12 @@ export class ChaseCamera {
     if (Math.abs(this.roll) > 1e-4) this.camera.rotateZ(-this.roll);
   }
 
-  private applyShake(dt: number): void {
+  private applyShake(dt: number, scale = 1): void {
     this.trauma = Math.max(0, this.trauma - CAMERA.shakeDecay * dt);
     const s = this.trauma * this.trauma;
     if (s <= 0) return;
     const n = (f: number, o: number) => Math.sin(this.time * f + o) * Math.sin(this.time * f * 0.53 + o * 2.1);
-    const amp = CAMERA.shakeMaxOffset * s;
+    const amp = CAMERA.shakeMaxOffset * s * scale;
     this.camera.position.x += n(31, 0) * amp;
     this.camera.position.y += n(27, 1) * amp;
     this.camera.position.z += n(23, 2) * amp;

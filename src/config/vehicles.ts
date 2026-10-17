@@ -1,7 +1,10 @@
 import type { SurfaceId } from './surfaces';
 
-export type VehicleId = 'bicycle' | 'mountainBike' | 'motorbike' | 'car' | 'flyingCar' | 'jet' | 'snowboard' | 'skis';
-export const VEHICLE_IDS: VehicleId[] = ['bicycle', 'mountainBike', 'motorbike', 'car', 'flyingCar', 'jet', 'snowboard', 'skis'];
+export type VehicleId = 'bicycle' | 'mountainBike' | 'motorbike' | 'car' | 'flyingCar' | 'jet' | 'snowboard' | 'skis' | 'wingsuit' | 'onFoot';
+/** Everything the vehicle wheel offers, in slot order (on foot is only used for the race start). */
+export const VEHICLE_IDS: VehicleId[] = ['bicycle', 'mountainBike', 'motorbike', 'car', 'flyingCar', 'jet', 'snowboard', 'skis', 'wingsuit'];
+/** Ground vehicle used after a wingsuit landing until the rider has picked one themselves. */
+export const DEFAULT_GROUND_VEHICLE: VehicleId = 'mountainBike';
 
 export interface SurfaceMod {
   grip?: number;
@@ -103,6 +106,63 @@ const base: Omit<VehicleStats, 'name'> = {
 
 export const VEHICLES: Record<VehicleId, VehicleStats> = {
   bicycle: { ...base, name: 'Bicycle', surface: { ...base.surface } },
+  // The race start: jog along the summit plateau (W sprints) and leap off the edge.
+  onFoot: {
+    ...base,
+    name: 'On Foot',
+    mass: 80,
+    topSpeed: 10,
+    accel: 8,
+    propulsionMaxSpeed: 10,
+    brake: 14,
+    tuckAero: 1,
+    grip: 3.5,
+    skidDrag: 2,
+    turnRateLow: 3.2,
+    turnRateHigh: 2.6,
+    turnSpeedRef: 10,
+    airPitchRate: 0,
+    airSpinRate: 0,
+    airSteer: 0.6,
+    jumpSpeed: 4.5,
+    boostAccel: 0,
+    boostTopSpeed: 10,
+    rideHeight: 0.5,
+    travel: 0.25,
+    spring: 120,
+    damping: 14,
+    colliderRadius: 0.3,
+    wheelbase: 0.4,
+    crashImpact: 22,
+    crashAngleDeg: 85,
+    crashDecel: 14,
+    surface: {},
+  },
+  // Flies with FLIGHT.wingsuit; aero sets the glide speed (~150 km/h neutral, ~200 diving).
+  wingsuit: {
+    ...base,
+    name: 'Wingsuit',
+    mass: 85,
+    topSpeed: 70,
+    accel: 0,
+    propulsionMaxSpeed: 1,
+    tuckAero: 1,
+    aero: 0.0028,
+    grip: 1,
+    airPitchRate: 0,
+    airSpinRate: 0,
+    jumpSpeed: 0,
+    gravityScale: 1,
+    boostAccel: 0,
+    boostTopSpeed: 70,
+    rideHeight: 0.4,
+    colliderRadius: 0.35,
+    wheelbase: 0.6,
+    crashImpact: 18,
+    crashAngleDeg: 88,
+    crashDecel: 24,
+    surface: {},
+  },
   mountainBike: {
     ...base,
     name: 'Mountain Bike',
@@ -152,18 +212,33 @@ export const VEHICLES: Record<VehicleId, VehicleStats> = {
     topSpeed: 46,
     accel: 11,
     propulsionMaxSpeed: 46,
-    brake: 14,
+    brake: 15,
     aero: 0.0012,
-    grip: 2,
+    tuckAero: 1,
+    // Tyres bite harder than bike wheels; the handbrake cuts this for drifts.
+    grip: 2.7,
+    skidDrag: 0.9,
+    turnRateLow: 2.1,
+    turnRateHigh: 0.95,
+    turnSpeedRef: 32,
+    airPitchRate: 2.6,
+    airSpinRate: 2.8,
+    airSteer: 0.4,
+    // Space is the handbrake, not a hop.
     jumpSpeed: 0,
     boostAccel: 12,
     boostTopSpeed: 54,
-    /** Chassis centre above the ground at rest. */
+    /** Body centre above the ground at rest. */
     rideHeight: 0.85,
+    travel: 0.35,
+    spring: 110,
+    damping: 12,
+    colliderRadius: 0.55,
+    wheelbase: 2.7,
     crashImpact: 34,
     crashAngleDeg: 80,
     crashDecel: 30,
-    surface: {},
+    surface: { powder: { rolling: 0.6, drag: 0.5 }, rock: { grip: 1.1 }, mud: { grip: 1.1, drag: 0.6 } },
   },
   flyingCar: {
     ...base,
@@ -305,20 +380,33 @@ export const RIDING = {
   stuckTime: 6,
 };
 
-/** Arcade flight tuning for the hover car and the jet. */
+/**
+ * Arcade flight tuning (hover car, jet, wingsuit). One control scheme for every flyer:
+ * A/D bank-and-turn (wings level themselves), W/↑ dive, S/↓ pull up / flare (the nose returns to
+ * its neutral attitude when released), Shift thrust, Space climb (hover car).
+ */
 export interface FlightStats {
-  /** Thrust acceleration (m/s^2) and the speed it fades out toward. */
+  /** Thrust while holding Shift (m/s²), fading toward maxSpeed. 0 = unpowered (wingsuit). */
   thrust: number;
   maxSpeed: number;
-  /** Below this speed lift fades (stall). */
+  /** Space while flying: vertical climb (m/s²), uses the meter. 0 = none. */
+  climb: number;
+  /** Below this speed the wings stop working: lift fades and the nose is pushed down. */
   stallSpeed: number;
-  /** Fraction of gravity cancelled by lift at full speed. */
+  /** Fraction of gravity cancelled by lift at full speed (0 for a pure glider). */
   lift: number;
-  /** How fast velocity turns toward the nose (1/s). */
+  /** How fast the flight path turns toward the nose (1/s). */
   align: number;
-  pitchRate: number;
+  /** Nose attitude (rad, + = up): neutral (no input), and how far W/S move it. */
+  neutralPitch: number;
+  pitchUp: number;
+  pitchDown: number;
+  /** How quickly the nose reaches the commanded attitude (1/s). */
+  pitchResponse: number;
+  /** Turn rate at full bank (rad/s), max bank (rad), bank response (1/s). */
   yawRate: number;
   bankMax: number;
+  bankResponse: number;
   /** Gravity scale while flying. */
   gravity: number;
   /** Meter drain while thrusting / recharge on the ground (per second, 0..1). */
@@ -329,10 +417,32 @@ export interface FlightStats {
   lowGlideHeight: number;
   /** Soft altitude ceiling above the terrain (m). */
   ceiling: number;
+  /** Below this height (m) while sinking, the nose is eased up (terrain safety). */
+  groundAssist: number;
 }
 
-export const FLIGHT: Record<'flyingCar' | 'jet', FlightStats> = {
-  flyingCar: { thrust: 12, maxSpeed: 50, stallSpeed: 12, lift: 0.85, align: 2.4, pitchRate: 1.3, yawRate: 1.1, bankMax: 0.55, gravity: 0.6, drain: 1 / 9, groundRecharge: 1 / 5, lowGlideRecharge: 0, lowGlideHeight: 0, ceiling: 110 },
+export type FlyerId = 'flyingCar' | 'jet' | 'wingsuit';
+
+export const FLIGHT: Record<FlyerId, FlightStats> = {
+  flyingCar: {
+    thrust: 12, maxSpeed: 50, climb: 9, stallSpeed: 10, lift: 0.9, align: 2.6,
+    neutralPitch: 0, pitchUp: 0.45, pitchDown: 0.6, pitchResponse: 3,
+    yawRate: 1.1, bankMax: 0.5, bankResponse: 4, gravity: 0.6,
+    drain: 1 / 9, groundRecharge: 1 / 5, lowGlideRecharge: 0, lowGlideHeight: 0, ceiling: 110, groundAssist: 4,
+  },
   // Fast, but fuel only comes back while gliding low: overusing it loses time to clean riding.
-  jet: { thrust: 18, maxSpeed: 58, stallSpeed: 18, lift: 0.95, align: 2.0, pitchRate: 1.5, yawRate: 1.0, bankMax: 0.9, gravity: 0.8, drain: 1 / 20, groundRecharge: 1 / 4, lowGlideRecharge: 1 / 6, lowGlideHeight: 15, ceiling: 150 },
+  jet: {
+    thrust: 18, maxSpeed: 58, climb: 0, stallSpeed: 16, lift: 0.95, align: 2.2,
+    neutralPitch: 0, pitchUp: 0.5, pitchDown: 0.7, pitchResponse: 3,
+    yawRate: 1.0, bankMax: 0.8, bankResponse: 4, gravity: 0.8,
+    drain: 1 / 20, groundRecharge: 1 / 4, lowGlideRecharge: 1 / 6, lowGlideHeight: 15, ceiling: 150, groundAssist: 5,
+  },
+  // Pure glider, steeper than a real suit (~1.7:1 at the neutral attitude) so a flight comes down
+  // within a minute or so on these slopes. Dive for speed, flare to stretch the glide.
+  wingsuit: {
+    thrust: 0, maxSpeed: 70, climb: 0, stallSpeed: 15, lift: 0, align: 2.0,
+    neutralPitch: -0.53, pitchUp: 0.6, pitchDown: 0.5, pitchResponse: 2.5,
+    yawRate: 0.9, bankMax: 0.75, bankResponse: 4, gravity: 1,
+    drain: 0, groundRecharge: 0, lowGlideRecharge: 0, lowGlideHeight: 0, ceiling: 600, groundAssist: 6,
+  },
 };

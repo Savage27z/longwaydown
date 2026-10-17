@@ -286,3 +286,50 @@
   - `__film({...})` renders a run of frames and saves a contact sheet to `.shots/` (gitignored) through a dev-server-only endpoint. Its `view` option gives a camera that frames the rider.
   - The bot now lines up on jumps and pops the lip, and logs its airtime.
 - **Tests:** 6 new body-dynamics tests (31 total).
+
+## Re-scope, Steps 1–3: feel fixes, steeper maps, wingsuit race start
+The direction changed after the second Phase 5 check: 8-rider races (bots now, online later), a wingsuit start off the summit, maps that go properly downhill, a new flying roadster, and CC0 vehicle art. The plan is in `.claude/plans`; the model shortlist is in `docs/vehicle-models.md`.
+
+**Step 1 — Feel fixes**
+- **Camera calmed down:**
+  - Rumble 0.12 → 0.04; smaller landing and crash shake; first-person shake at 40%; no shake on vehicle switch.
+  - The vertical spring is about 2× stiffer, with max lag 2.2 → 0.8 m.
+  - Lean roll 0.2 → 0.07, bank roll 0.4 → 0.2; half the air pull-back.
+- **Buggy rebuilt** on the bikes' arcade controller (`vehicles/ArcadeCar.ts`, `Buggy.ts`) instead of Rapier's raycast vehicle:
+  - Predictable, and it can't flip on its own.
+  - Tight grip; Space handbrake drift (rear grip ×0.32, faster rotation); S reverses up to 25 km/h.
+  - Per-wheel ground rays drive the visual suspension; the chassis rolls out of corners, squats and dives on its springs.
+  - Bot run: 1.2 km in 30 s at up to 170 km/h, 13 jumps, no crashes. `Car.ts` was removed.
+- **One flight scheme for every flyer** (`vehicles/FlightModel.ts`). It's attitude control, so the stick commands a nose angle and wings and nose settle back to neutral when released:
+  - A/D bank and turn (coordinated); W/↑ dive; S/↓ pull up or flare; Shift thrust; Space climb (hover car).
+  - Assists: stall recovery and a gentle nose-up just above the terrain.
+  - Control labels updated.
+
+**Step 2 — Maps that go down properly**
+- Grades are about 1.5× steeper on both maps. Snow Peak: 7200 m summit, 6800 m drop. Green Ridge: 6000 m summit, 5550 m drop.
+- **The start** has three new sections:
+  - **Summit Plateau:** flat, 140–150 m wide.
+  - **The Edge:** a new `launchEdge` kernel lifts the summit into a mesa that ends in a sheer 140–150 m face, marked with red flags.
+  - **The Face:** about 900 m at roughly 36°.
+  - **Runout:** a gentler 900 m apron where wingsuits sink back to the snow.
+- The first checkpoint is at the end of the runout. The start gate is 40 m before the edge.
+
+**Step 3 — On foot, wingsuit, race start**
+- **On foot** (`vehicles/OnFoot.ts`):
+  - Jogs on its own at 25 km/h; W sprints to 36 km/h; A/D steer; Space jumps.
+  - Procedural run cycle: alternating strides that lengthen with speed, pumping arms, bounce and lean.
+- **Wingsuit** (`vehicles/Wingsuit.ts`):
+  - About 1.7:1 glide at roughly 150 km/h, up to about 200 km/h diving. That's steeper than a real suit, so the opening flight lasts about 45 s instead of gliding over half the map.
+  - Prone spread-eagle pose that pikes to dive and arches to flare.
+  - Cloth membrane between the arms and legs, rebuilt from the skeleton every frame (`player/WingsuitMembrane.ts`); it unfurls on deploy.
+- **Rules:**
+  - Running off the edge (more than 6 m up) deploys the suit; Space deploys it from 3 m.
+  - Touching down hands over to your last ground vehicle (MTB by default; snow-only vehicles are skipped on Green Ridge).
+  - The wheel opens once you're off the edge. The wingsuit slot needs 8 m of altitude ("Need altitude").
+  - Respawning on the plateau puts you back on foot.
+- **Verified:**
+  - A full start runs: countdown, 7 s sprint, leap at the lip, about 42 s of flight (up to about 160 m above the slope), touchdown at 1.8 km on the MTB, then riding on at 110–135 km/h.
+  - Filmed: the run-up to the edge and the wingsuit over the face.
+- **Tests:** 45 total, adding launch-edge flatness and drop, first-checkpoint position, wingsuit glide ratio and speed, dive/flare, auto-level, stall and terrain assists, and the wheel's altitude and on-foot rules.
+
+**Not done yet:** bots and 8-rider races (Step 4), then CC0 vehicle art and the Volt Roadster (Step 5).

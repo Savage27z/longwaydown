@@ -120,6 +120,8 @@ export const BODY_MOTION: Record<VehicleId, BodyMotion> = {
   flyingCar: { ...seated, buzz: 10, freq: 1.2 },
   jet: { ...seated, hipsShare: 0.35, torsoPitch: 1.2, torsoRoll: 1.6, headLevel: 0.25, headTurn: 0.2, buzz: 8, airThrow: 0.25 },
   snowboard: snow,
+  onFoot: { ...bike, gain: [0.3, 0.4, 0.3], maxDown: 0.12, hipsShare: 1, airTuck: 0.08, airReach: 0.06, airBack: 0, airArms: 0.4, pop: 0.6, buzz: 10, speedCrouch: 0 },
+  wingsuit: { ...seated, hipsShare: 0.3, torsoPitch: 1, torsoRoll: 1.4, headLevel: 0.2, headTurn: 0.25, buzz: 4, airThrow: 0.2, airArms: 0 },
   skis: { ...snow, airTuck: 0.24, airArms: 0.55, headTurn: 0.25 },
 };
 

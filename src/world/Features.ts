@@ -75,7 +75,44 @@ function dims(type: FeatureType, size: number, hw: number, rng: Rng): Dims {
       return { length: 900, width: 22, height: 0, depth: 6, occupy: 90, maxCurv: 1 / 250, lateral: 0 };
     case 'ford':
       return { length: 500, width: 18, height: 0, depth: 1.1, occupy: 60, maxCurv: 1 / 200, lateral: 0 };
+    case 'launchEdge':
+      // Placed from MapConfig.launch (see placeLaunchEdge); these are only defaults.
+      return { length: 7, width: hw * 2, height: 250, depth: 150, occupy: 0, maxCurv: 1, lateral: 0 };
   }
+}
+
+/** Back extent of the summit mesa behind the course start (m) and its taper (m). */
+const MESA_BACK = 150;
+const MESA_TAPER = 250;
+
+/** The summit mesa: everything behind the lip is lifted by `height`, ending in a sheer face. */
+function placeLaunchEdge(map: MapConfig, course: CourseData, out: CourseFeature[]): void {
+  const L = map.launch;
+  const i = clamp(Math.round(L.edgeS / course.step), 0, course.count - 1);
+  const tx = course.tx[i]!;
+  const tz = course.tz[i]!;
+  const back = L.edgeS + MESA_BACK + MESA_TAPER;
+  out.push({
+    id: out.length,
+    type: 'launchEdge',
+    s: L.edgeS,
+    section: 0,
+    x: course.x[i]!,
+    y: course.y[i]!,
+    z: course.z[i]!,
+    tx,
+    tz,
+    lateral: 0,
+    // Plateau width, lip falloff (m) and how far the mesa sides slope away (m).
+    width: L.width,
+    length: 7,
+    height: L.height,
+    depth: 150,
+    side: 1,
+    angle: 0,
+    hw: course.hw[i]!,
+    radius: Math.hypot(back, L.width / 2 + 150) + 20,
+  });
 }
 
 /** Distribute each section's feature specs along the course, avoiding overlaps and tight turns. */
@@ -85,6 +122,8 @@ export function placeFeatures(map: MapConfig, course: CourseData, rng: Rng): Cou
   const free = (a: number, b: number) => taken.every(([x, y]) => b < x || a > y);
   const startGuard = 140;
   const endGuard = 280;
+
+  placeLaunchEdge(map, course, out);
 
   map.sections.forEach((sec, si) => {
     const s0 = course.sectionStart[si]!;
@@ -177,6 +216,16 @@ export function featureHeight(f: CourseFeature, p: KernelPoint): number {
         if (u < G) h -= f.depth * Math.sin((Math.PI * u) / G);
       }
       return h * m;
+    }
+    case 'launchEdge': {
+      if (u > f.length) return 0;
+      const lat = 1 - smoothstep(f.width / 2, f.width / 2 + f.depth, Math.abs(v));
+      if (lat <= 0) return 0;
+      const backStart = -(f.s + MESA_BACK);
+      const back = smoothstep(backStart - MESA_TAPER, backStart, u);
+      // Sheer lip: the full height holds right up to u = 0, then drops over `length` metres.
+      const lip = 1 - smoothstep(0, f.length, u);
+      return f.height * lip * lat * back;
     }
     case 'roller': {
       const cu = p.cs - f.s;

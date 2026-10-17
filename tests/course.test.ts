@@ -7,9 +7,9 @@ describe.each(MAP_ORDER)('course %s', (id) => {
   const map = MAPS[id];
   const course = generateCourse(map);
 
-  it('is 15-25 km long and drops the configured height', () => {
+  it('is 15-27 km long (incl. the ~1.5 km plateau + wingsuit face) and drops the configured height', () => {
     expect(course.length).toBeGreaterThan(15000);
-    expect(course.length).toBeLessThan(25000);
+    expect(course.length).toBeLessThan(27000);
     const drop = course.y[0]! - course.y[course.count - 1]!;
     expect(drop).toBeGreaterThan(map.totalDrop * 0.95);
     expect(drop).toBeLessThan(map.totalDrop * 1.05);
@@ -53,8 +53,11 @@ describe.each(MAP_ORDER)('course %s', (id) => {
     expect(maxLineErr).toBeLessThan(15);
     // Continuity: neighbours 0.5 m apart never differ by more than a few metres.
     let maxJump = 0;
+    const lipIdx = map.launch.edgeS / course.step;
     for (let k = 0; k < 4000; k++) {
       const i = 50 + ((k * 7919) % (course.count - 100));
+      // The summit lip is a deliberate sheer drop (samples are offset up to 90 m, along either axis).
+      if (Math.abs(i - lipIdx) < 130 / course.step) continue;
       const x = course.x[i]! + ((k % 13) - 6) * 15;
       const z = course.z[i]! + ((k % 7) - 3) * 20;
       const a = sampler.heightAt(x, z);
@@ -62,6 +65,33 @@ describe.each(MAP_ORDER)('course %s', (id) => {
       maxJump = Math.max(maxJump, Math.abs(a - b));
     }
     expect(maxJump).toBeLessThan(6);
+  });
+});
+
+describe.each(MAP_ORDER)('launch edge %s', (id) => {
+  const map = MAPS[id];
+  const course = generateCourse(map);
+  const sampler = new TerrainSampler(id, course);
+  const at = (s: number, lateral = 0) => {
+    const i = Math.round(s / course.step);
+    const x = course.x[i]! - course.tz[i]! * lateral;
+    const z = course.z[i]! + course.tx[i]! * lateral;
+    return sampler.heightAt(x, z);
+  };
+
+  it('has a flat plateau to run on', () => {
+    const hs = [20, 40, 60, 80, 95].flatMap((s) => [at(s, -30), at(s), at(s, 30)]);
+    expect(Math.max(...hs) - Math.min(...hs)).toBeLessThan(4);
+  });
+
+  it('ends in a sheer drop of about the configured height', () => {
+    const top = at(map.launch.edgeS - 2);
+    const below = at(map.launch.edgeS + 12);
+    expect(top - below).toBeGreaterThan(map.launch.height * 0.9);
+  });
+
+  it('starts the checkpoints at the bottom of the wingsuit face', () => {
+    expect(course.checkpoints[0]).toBeCloseTo(course.sectionStart[map.launch.sections]!, 0);
   });
 });
 

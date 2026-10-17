@@ -40,6 +40,8 @@ export const CAMERA_PROFILES: Record<VehicleId, CameraProfile> = {
   flyingCar: { ...bike, distance: 8, height: 3, lookHeight: 1.5, fovBase: 68, distancePerSpeed: 1.6 },
   jet: { ...bike, distance: 11, height: 3.5, lookHeight: 1.5, lookAhead: 20, fovBase: 72, fovPerSpeed: 10, fovMax: 100, distancePerSpeed: 2 },
   snowboard: { ...bike, distance: 4.4, height: 1.8, lookHeight: 1.0 },
+  onFoot: { ...bike, distance: 3.8, height: 1.7, lookHeight: 1.3, lookAhead: 6, fovBase: 66, fovPerSpeed: 8 },
+  wingsuit: { ...bike, distance: 6.5, height: 1.6, lookHeight: 0.6, lookAhead: 18, fovBase: 72, fovPerSpeed: 12, fovMax: 98, distancePerSpeed: 1.2 },
   skis: { ...bike, distance: 4.4, height: 1.8, lookHeight: 1.0 },
 };
 
@@ -51,8 +53,10 @@ export const CAMERA = {
   stickSpeed: 2.6,
   minClearance: 1.2,
   shakeDecay: 1.8,
-  shakeMaxOffset: 0.35,
-  shakeMaxRoll: 0.05,
+  shakeMaxOffset: 0.22,
+  shakeMaxRoll: 0.03,
+  /** First-person shake is scaled down by this (the view is attached to the head). */
+  firstPersonShake: 0.4,
   /** First-person view. */
   firstPersonFov: 84,
   firstPersonFovPerSpeed: 12,
@@ -62,21 +66,26 @@ export const CAMERA = {
   farDistance: 1.9,
   farHeight: 2.3,
   /** Constant rumble on rough ground (max trauma). */
-  rumble: 0.12,
+  rumble: 0.04,
   /** Vertical follow spring (1/s² on the ground; softer in the air) and damping ratio. Velocity is
    *  fed forward, so steady slopes track exactly and only takeoffs, landings and bumps lag. */
-  verticalStiffness: 70,
-  airStiffness: 22,
-  verticalDamping: 0.7,
-  maxVerticalLag: 2.2,
+  verticalStiffness: 150,
+  airStiffness: 50,
+  verticalDamping: 0.85,
+  maxVerticalLag: 0.8,
   /** Camera roll as a fraction of the bike's lean / the flyer's bank. */
-  leanRoll: 0.2,
-  bankRoll: 0.4,
+  leanRoll: 0.07,
+  bankRoll: 0.2,
   /** How much the chase angle follows the flight path when climbing / diving. */
   flightPitchFollow: 0.55,
   /** Extra distance in the air (fraction) and FOV kick while boosting (degrees). */
-  airPullBack: 0.14,
+  airPullBack: 0.07,
   boostFov: 7,
+  /** Shake (trauma 0..1) from landings: (impact - landingShakeFrom) / landingShakeRange, capped. */
+  landingShakeFrom: 5,
+  landingShakeRange: 20,
+  landingShakeMax: 0.45,
+  crashShake: 0.45,
 };
 
 export type CameraView = 'chase' | 'far' | 'first';

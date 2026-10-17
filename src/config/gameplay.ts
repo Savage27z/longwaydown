@@ -35,3 +35,13 @@ export const SWITCH = {
   mouseDeadzone: 40,
   stickDeadzone: 0.45,
 };
+
+/** Wingsuit rules (race start and mid-air deploys). */
+export const WINGSUIT_RULES = {
+  /** On foot and this high above the ground: the suit deploys by itself (m). */
+  autoDeployHeight: 6,
+  /** Space deploys it from this height on foot (m). */
+  manualDeployHeight: 3,
+  /** Minimum height above the ground to pick the wingsuit from the wheel (m). */
+  wheelMinHeight: 8,
+};

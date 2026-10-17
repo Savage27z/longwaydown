@@ -247,7 +247,9 @@ export function generateCourse(map: MapConfig): CourseData {
 
   course.features = placeFeatures(map, course, makeRng(`${map.seed}:features`));
 
-  for (let s = map.checkpointSpacing; s < length - 300; s += map.checkpointSpacing) course.checkpoints.push(s);
+  // First checkpoint at the bottom of the wingsuit face, then evenly spaced.
+  const firstCheckpoint = course.sectionStart[map.launch.sections] ?? map.checkpointSpacing;
+  for (let s = firstCheckpoint; s < length - 300; s += map.checkpointSpacing) course.checkpoints.push(s);
   for (let s = map.markerSpacing; s < length - 100; s += map.markerSpacing) course.markers.push(s);
   return course;
 }
