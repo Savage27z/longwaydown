@@ -132,3 +132,9 @@
   - Bone axes, lengths and rest rotations come from the skin's bind pose. IK is hinge-consistent (no limb twisting), and the pelvis is placed by its hip joints.
   - The procedural rider remains as a fallback if the .glb is missing.
 - **Bike rebuilt:** treaded tyres, double-wall rims, 24 crossed spokes, flanged hubs, disc rotors and calipers, a toothed chainring, a 9-cog cassette, a chain loop, derailleur pulleys, a sculpted saddle, a riser bar with grips and levers, a suspension fork (MTB), pinned flat pedals and glossy paint. Parts are merged per material to keep draw calls low.
+
+### Phase 3 pedalling fix (third feel check: "why isn't he cycling?")
+- The rider now pedals whenever you hold W or boost, at any speed. Cadence follows speed and is clamped to 65–150 rpm. Coasting levels the pedals in an attack stance.
+- Pedalling matters: propulsion now fades out toward about 86 km/h instead of 54 km/h, so W always adds speed (about 83 km/h on the flat).
+- Seated pedalling has hip rock and a shoulder counter-sway. Boost is an out-of-the-saddle sprint: the bike rocks with each stroke while the rider's torso counters it.
+- The bike is fitted to the new rider: the seatpost is 9 cm taller for the 0.94 m legs, and a tall stem plus riser bar brings the bars up and back for the short arms. The riding posture leans further forward.

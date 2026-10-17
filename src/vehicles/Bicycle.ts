@@ -9,7 +9,7 @@ import type { TransferState, VehicleInput } from './Vehicle';
 
 const TWO_PI = Math.PI * 2;
 const _v = new THREE.Vector3();
-const WRIST_OFFSET = new THREE.Vector3(0, 0.03, -0.06);
+const WRIST_OFFSET = new THREE.Vector3(0, 0.025, -0.045);
 
 /** Pedal bike (also the base for the mountain bike). Light, nimble; gravity does most of the work. */
 export class Bicycle extends ArcadeVehicle {
@@ -20,7 +20,14 @@ export class Bicycle extends ArcadeVehicle {
   private throttle = 0;
   private steerIn = 0;
   private pedaling = false;
+  private boostIn = false;
+  /** Smoothed 0..1 amounts for pedalling and out-of-the-saddle sprinting. */
+  private pedalAmt = 0;
+  private sprintAmt = 0;
+  private rock = 0;
   private steerAxis = new THREE.Vector3(0, 1, 0);
+  private rockQ = new THREE.Quaternion();
+  private static readonly FWD = new THREE.Vector3(0, 0, 1);
 
   constructor(physics: PhysicsWorld, state: TransferState, id: 'bicycle' | 'mountainBike' = 'bicycle', paint: ModelOptions = {}) {
     super(id, physics, state);
@@ -37,6 +44,7 @@ export class Bicycle extends ArcadeVehicle {
   protected override preStep(_dt: number, input: VehicleInput): void {
     this.throttle = input.throttle;
     this.steerIn = input.steer;
+    this.boostIn = input.boost;
   }
 
   protected animate(dt: number): void {
@@ -46,9 +54,15 @@ export class Bicycle extends ArcadeVehicle {
     if (p.wheelFront) p.wheelFront.rotation.x = this.wheelAngle;
     if (p.wheelRear) p.wheelRear.rotation.x = this.wheelAngle;
 
-    this.pedaling = this.throttle > 0.1 && fwd < this.stats.propulsionMaxSpeed * 1.25;
+    // Pedal whenever the rider is putting power down (accelerate or boost), at any speed.
+    const sprinting = this.telemetry.boosting || (this.boostIn && this.throttle > 0.1);
+    this.pedaling = this.throttle > 0.1 || sprinting;
+    this.pedalAmt = damp(this.pedalAmt, this.pedaling ? 1 : 0, 8, dt);
+    this.sprintAmt = damp(this.sprintAmt, sprinting && this.grounded ? 1 : 0, 6, dt);
     if (this.pedaling) {
-      this.crankAngle += Math.max(4, (fwd / BIKE_DIMS.wheelRadius) * 0.42) * dt;
+      // Cadence follows speed (big gear), clamped to a believable 65-150 rpm; sprints spin faster.
+      const revPerSec = clamp(Math.abs(fwd) / 5.5, 1.1, 2.4) + this.sprintAmt * 0.5;
+      this.crankAngle += revPerSec * TWO_PI * dt;
     } else {
       // Coasting: pedals level, leading foot forward.
       const level = Math.round(this.crankAngle / Math.PI) * Math.PI;
@@ -65,6 +79,9 @@ export class Bicycle extends ArcadeVehicle {
     if (p.forkSlider && this.id === 'mountainBike') {
       p.forkSlider.position.copy(this.steerAxis).multiplyScalar(-this.telemetry.compression * 0.09);
     }
+    // Out-of-the-saddle sprint: the bike rocks side to side with each pedal stroke.
+    this.rock = Math.sin(this.crankAngle) * 0.13 * this.sprintAmt;
+    if (Math.abs(this.rock) > 1e-4) this.model.quaternion.multiply(this.rockQ.setFromAxisAngle(Bicycle.FWD, this.rock));
   }
 
   private local(name: string, out: THREE.Vector3): THREE.Vector3 {
@@ -82,14 +99,23 @@ export class Bicycle extends ArcadeVehicle {
     const seat = this.local('seat', _v);
     // Attack position when coasting fast: up off the saddle, weight back, elbows out.
     const stand = coastingFast ? 1 : 0;
+    const sprint = this.sprintAmt;
+    const pedal = this.pedalAmt * (1 - sprint);
+    const ca = this.crankAngle;
+    // Seated pedalling: hips rock with each stroke, shoulders counter the rock.
+    const sway = Math.sin(ca) * pedal;
     // Hip joints sit a little above the saddle top.
-    out.hips.set(0, seat.y + 0.05 - comp * 0.14 - tuck * 0.07 + stand * 0.12, seat.z - 0.02 - tuck * 0.06 - stand * 0.03);
-    const hipPitch = 0.32 + tuck * 0.12 + stand * 0.05;
-    const spinePitch = 0.32 + tuck * 0.3 + comp * 0.18 + stand * 0.08;
-    const chestPitch = 0.12 + tuck * 0.12;
-    out.hipsRot.set(hipPitch, 0, 0);
-    out.spine.set(spinePitch, 0, -this.lean * 0.25);
-    out.chest.set(chestPitch, -this.steerVis * 0.25, 0);
+    out.hips.set(
+      sway * 0.012 - this.rock * 0.25,
+      seat.y + 0.05 - comp * 0.14 - tuck * 0.07 + stand * 0.12 + sprint * 0.16 + Math.abs(Math.cos(ca)) * 0.012 * pedal,
+      seat.z - 0.02 - tuck * 0.06 - stand * 0.03 + sprint * 0.1,
+    );
+    const hipPitch = 0.4 + tuck * 0.12 + stand * 0.05 + sprint * 0.1;
+    const spinePitch = 0.42 + tuck * 0.28 + comp * 0.18 + stand * 0.08 + sprint * 0.08;
+    const chestPitch = 0.16 + tuck * 0.1;
+    out.hipsRot.set(hipPitch, 0, sway * 0.06);
+    out.spine.set(spinePitch, 0, -this.lean * 0.25 - sway * 0.05 - this.rock * 0.7);
+    out.chest.set(chestPitch, -this.steerVis * 0.25 + Math.sin(ca) * 0.06 * (pedal + sprint), 0);
     // Keep the eyes on the trail.
     out.head.set(-(hipPitch + spinePitch + chestPitch) * 0.85, -this.steerVis * 0.5, this.lean * 0.15);
     const grab = !this.grounded && input.trick;

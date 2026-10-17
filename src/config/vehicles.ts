@@ -66,8 +66,9 @@ const base: Omit<VehicleStats, 'name'> = {
   mass: 90,
   // Arcade-fast: ~125 km/h coasting on a typical slope, ~137 km/h soft cap, more with boost.
   topSpeed: 38,
-  accel: 8,
-  propulsionMaxSpeed: 15,
+  // Pedalling adds speed all the way up (diminishing), ~83 km/h on the flat.
+  accel: 6,
+  propulsionMaxSpeed: 24,
   brake: 11,
   aero: 0.0019,
   tuckAero: 0.7,
@@ -106,8 +107,8 @@ export const VEHICLES: Record<VehicleId, VehicleStats> = {
     ...base,
     name: 'Mountain Bike',
     topSpeed: 41,
-    accel: 8.8,
-    propulsionMaxSpeed: 16,
+    accel: 6.6,
+    propulsionMaxSpeed: 26,
     grip: 2.3,
     travel: 0.52,
     spring: 120,

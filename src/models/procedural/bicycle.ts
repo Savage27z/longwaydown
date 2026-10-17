@@ -32,7 +32,7 @@ export function buildBicycle(opt: BikeOptions): THREE.Group {
   const frontAxle = V(0, R, BIKE_DIMS.wheelbase / 2);
   const bb = BIKE_DIMS.bottomBracket.clone();
   const seatCluster = V(0, 0.8, -0.24);
-  const headTop = V(0, 0.89, 0.33);
+  const headTop = V(0, 0.93, 0.33);
   const headBottom = V(0, 0.73, 0.385);
   const tr = opt.mtb ? 0.026 : 0.018;
 
@@ -56,7 +56,8 @@ export function buildBicycle(opt: BikeOptions): THREE.Group {
     frame.add(tube(p.clone().addScaledVector(headBottom.clone().sub(bb).normalize(), -0.02), p, tr * 1.32, m.accent));
   }
   // Seatpost + saddle.
-  const postTop = seatCluster.clone().add(V(0, 0.13, -0.045));
+  // Sized for the rider's ~0.94 m legs: near-full extension at the bottom of the stroke.
+  const postTop = seatCluster.clone().add(V(0, 0.22, -0.075));
   frame.add(tube(seatCluster, postTop, 0.014, m.metal));
   frame.add(joint(seatCluster.clone().add(V(0, 0.01, 0)), 0.02, m.dark));
   mergeByMaterial(frame);
@@ -128,10 +129,11 @@ export function buildBicycle(opt: BikeOptions): THREE.Group {
   forkSlider.add(wf);
 
   // Stem + riser bar + grips + levers.
-  const stemEnd = L(V(0, 0.95, 0.4));
+  // Tall stem + riser bar: the rider's arms are short, so the bars come up and back.
+  const stemEnd = L(V(0, 1.08, 0.35));
   steer.add(tube(L(headTop), stemEnd, 0.017, m.dark));
   const barW = opt.mtb ? 0.38 : 0.3;
-  const barY = stemEnd.y + (opt.mtb ? 0.025 : 0.0);
+  const barY = stemEnd.y + (opt.mtb ? 0.045 : 0.03);
   for (const s of [1, -1]) {
     steer.add(tube(stemEnd, V(barW * 0.45 * s, barY, stemEnd.z - 0.01), 0.011, m.dark));
     steer.add(tube(V(barW * 0.45 * s, barY, stemEnd.z - 0.01), V(barW * s, barY + 0.01, stemEnd.z - 0.035), 0.011, m.dark));
