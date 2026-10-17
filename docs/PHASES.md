@@ -123,3 +123,12 @@
   - Meshes are merged per bone and material, so there are fewer draw calls.
   - The bike pose is reworked: flat back, eyes up, elbows out, knees tracking forward, and an attack stance when coasting fast.
 - **Speed lines:** radial streaks at the screen edges above 60 km/h (`fx/SpeedLines.ts`).
+
+### Phase 3 art pass (second feel check: "bike and character look sloppy")
+- **Rider:** now uses Quaternius's CC0 *Ultimate Modular Men* pack.
+  - `scripts/build-riders.mjs` merges all 11 outfits onto one shared 62-joint skeleton, strips the 24 animations and quantizes normals/weights. The result is `public/models/riders.glb`: 4.5 MB, about 1.2 MB gzipped.
+  - Every outfit splits into Head/Body/Legs/Feet parts that can be mixed (`config/riders.ts`). The default is the race suit with helmet. Materials are cloned per rider for recolouring in Phase 8.
+- **Rig binding layer** (`player/rig/*`): the pose/IK system now drives any skeleton.
+  - Bone axes, lengths and rest rotations come from the skin's bind pose. IK is hinge-consistent (no limb twisting), and the pelvis is placed by its hip joints.
+  - The procedural rider remains as a fallback if the .glb is missing.
+- **Bike rebuilt:** treaded tyres, double-wall rims, 24 crossed spokes, flanged hubs, disc rotors and calipers, a toothed chainring, a 9-cog cassette, a chain loop, derailleur pulleys, a sculpted saddle, a riser bar with grips and levers, a suspension fork (MTB), pinned flat pedals and glossy paint. Parts are merged per material to keep draw calls low.

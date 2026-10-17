@@ -186,7 +186,7 @@ export class PlayerController {
       const fade = (this.crashTimer - (RIDING.crashDuration - 0.6)) / 0.6;
       this.character.setOpacity(Math.max(0, Math.min(1, 1 - fade)));
     }
-    this.character.rig.bones.head.visible = this.headVisible;
+    this.character.setHeadVisible(this.headVisible);
   }
 
   /** Global position of the rider (body centre). */

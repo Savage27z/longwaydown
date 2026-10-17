@@ -8,6 +8,8 @@ import { ChaseCamera, type CameraTarget } from '../camera/ChaseCamera';
 import { FlyCam } from '../camera/FlyCam';
 import { PlayerController } from '../player/PlayerController';
 import { World } from '../world/World';
+import { loadRiderPack } from '../models/ModelLoader';
+import { RIDER_ASSET } from '../config/riders';
 import { events } from './Events';
 import type { Game, GameMode, ProgressFn } from './Game';
 
@@ -53,7 +55,9 @@ export class PlayMode implements GameMode {
   }
 
   static async create(game: Game, mapId: MapId, progress: ProgressFn): Promise<PlayMode> {
+    const riders = loadRiderPack(RIDER_ASSET.url);
     const world = await World.create(mapId, game.renderer, game.physics, game.graphics, progress);
+    await riders;
     return new PlayMode(game, world);
   }
 
@@ -102,8 +106,7 @@ export class PlayMode implements GameMode {
     if (this.player.state === 'crashed') t.velocity.multiplyScalar(0);
     t.heading = v.telemetry.heading;
     v.renderQuaternion(t.quaternion);
-    this.player.character.rig.bones.head.getWorldPosition(t.head);
-    t.head.y += 0.12;
+    this.player.character.headPosition(t.head);
     t.grounded = v.telemetry.grounded;
     t.vehicle = v.id;
     // Rough ground rumbles the camera a little.

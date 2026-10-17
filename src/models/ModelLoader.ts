@@ -74,6 +74,31 @@ export function applyPaint(root: THREE.Object3D, o: ModelOptions): void {
   });
 }
 
+let riderPack: THREE.Object3D | null = null;
+let riderPackPromise: Promise<THREE.Object3D | null> | null = null;
+
+/** Load the skinned rider pack (CC0 Quaternius outfits). Resolves null if unavailable. */
+export function loadRiderPack(url: string): Promise<THREE.Object3D | null> {
+  if (!riderPackPromise) {
+    riderPackPromise = (async () => {
+      try {
+        const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+        const gltf = await new GLTFLoader().loadAsync(url);
+        riderPack = gltf.scene;
+        return riderPack;
+      } catch (e) {
+        console.warn('[ModelLoader] rider pack unavailable, using procedural rider:', e);
+        return null;
+      }
+    })();
+  }
+  return riderPackPromise;
+}
+
+export function getRiderPack(): THREE.Object3D | null {
+  return riderPack;
+}
+
 /** Character rig: procedural, or a .glb with matching bone names and `slot:<name>` materials. */
 export function createCharacterRig(): CharacterRig {
   const cached = glbCache.get('character');

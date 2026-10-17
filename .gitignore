@@ -3,3 +3,4 @@ dist
 *.log
 .vercel
 .DS_Store
+assets-src/

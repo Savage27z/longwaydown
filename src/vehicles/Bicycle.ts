@@ -9,6 +9,7 @@ import type { TransferState, VehicleInput } from './Vehicle';
 
 const TWO_PI = Math.PI * 2;
 const _v = new THREE.Vector3();
+const WRIST_OFFSET = new THREE.Vector3(0, 0.03, -0.06);
 
 /** Pedal bike (also the base for the mountain bike). Light, nimble; gravity does most of the work. */
 export class Bicycle extends ArcadeVehicle {
@@ -81,7 +82,8 @@ export class Bicycle extends ArcadeVehicle {
     const seat = this.local('seat', _v);
     // Attack position when coasting fast: up off the saddle, weight back, elbows out.
     const stand = coastingFast ? 1 : 0;
-    out.hips.set(0, seat.y + 0.09 - comp * 0.14 - tuck * 0.07 + stand * 0.12, seat.z - 0.02 - tuck * 0.06 - stand * 0.03);
+    // Hip joints sit a little above the saddle top.
+    out.hips.set(0, seat.y + 0.05 - comp * 0.14 - tuck * 0.07 + stand * 0.12, seat.z - 0.02 - tuck * 0.06 - stand * 0.03);
     const hipPitch = 0.32 + tuck * 0.12 + stand * 0.05;
     const spinePitch = 0.32 + tuck * 0.3 + comp * 0.18 + stand * 0.08;
     const chestPitch = 0.12 + tuck * 0.12;
@@ -99,8 +101,9 @@ export class Bicycle extends ArcadeVehicle {
       out.freeArm.spread = 1.2;
       out.freeArm.bend = 0.2;
     } else {
-      out.handL = this.local('gripL', out.handL ?? new THREE.Vector3());
-      out.handR = this.local('gripR', out.handR ?? new THREE.Vector3());
+      // Wrists sit just behind and above the grips.
+      out.handL = this.local('gripL', out.handL ?? new THREE.Vector3()).add(WRIST_OFFSET);
+      out.handR = this.local('gripR', out.handR ?? new THREE.Vector3()).add(WRIST_OFFSET);
     }
     this.local('pedalL', out.footL).y += 0.07;
     this.local('pedalR', out.footR).y += 0.07;
