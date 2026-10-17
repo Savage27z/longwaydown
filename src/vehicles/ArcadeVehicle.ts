@@ -157,8 +157,10 @@ export abstract class ArcadeVehicle extends Vehicle {
     }
 
     // --- Smoothed frame normal ---
-    const targetN = grounded ? this.groundNormal : this.airGroundDist < RIDING.landingAlignDistance ? this.airGroundNormal : UP;
-    const nRate = grounded ? RIDING.normalSmoothing : this.airGroundDist < RIDING.landingAlignDistance ? 10 : 2.5;
+    // In the air the vehicle follows its arc (nose up off the lip, nose down into the landing),
+    // then lines up with the landing slope when it gets close.
+    const targetN = grounded ? this.groundNormal : this.airGroundDist < RIDING.landingAlignDistance ? this.airGroundNormal : this.arcNormal(v);
+    const nRate = grounded ? RIDING.normalSmoothing : this.airGroundDist < RIDING.landingAlignDistance ? 10 : RIDING.arcFollow;
     this.normal.lerp(targetN, 1 - Math.exp(-nRate * dt)).normalize();
     const n = this.normal;
 
@@ -223,6 +225,18 @@ export abstract class ArcadeVehicle extends Vehicle {
     this.computeQuat();
     this.updateTelemetry(v, n);
   }
+
+  /** Normal perpendicular to the flight path in the heading's vertical plane (pitch only). */
+  private arcNormal(v: THREE.Vector3): THREE.Vector3 {
+    const hx = Math.sin(this.heading);
+    const hz = Math.cos(this.heading);
+    const along = v.x * hx + v.z * hz;
+    const pitch = clamp(Math.atan2(v.y, Math.max(1, Math.abs(along))), -RIDING.arcMaxPitch, RIDING.arcMaxPitch);
+    const c = Math.cos(pitch);
+    const s = Math.sin(pitch);
+    return this.arcN.set(-hx * s, c, -hz * s);
+  }
+  private readonly arcN = new THREE.Vector3();
 
   private doJump(v: THREE.Vector3, n: THREE.Vector3): void {
     const vn = v.dot(n);
@@ -308,7 +322,10 @@ export abstract class ArcadeVehicle extends Vehicle {
     const perp = dist * Math.max(0.3, n.y);
     const comp = s.rideHeight - perp;
     let springA = s.spring * comp - s.damping * vn;
-    if (comp < 0) springA = vn > 1.5 ? 0 : Math.max(springA * 0.35, -12);
+    if (comp < 0) {
+      const stick = lerp(RIDING.crestStick, RIDING.crestStickFast, clamp(spd / RIDING.crestStickSpeed, 0, 1));
+      springA = vn > 1.5 ? 0 : Math.max(springA * 0.35, -stick);
+    }
     vn += springA * dt;
     this.telemetry.compression = clamp(comp / s.travel, 0, 1);
 

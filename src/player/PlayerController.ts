@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { SWITCH } from '../config/gameplay';
+import { SURFACE_PHYSICS } from '../config/surfaces';
+import { WORLD } from '../config/world';
 import { RIDING, type VehicleId } from '../config/vehicles';
 import { events } from '../core/Events';
 import type { Game } from '../core/Game';
@@ -10,6 +12,7 @@ import { swapVehicle } from '../vehicles/VehicleSwitcher';
 import { defaultMods, emptyInput, type TransferState, type Vehicle, type VehicleContext, type VehicleSnapshot } from '../vehicles/Vehicle';
 import { Character, makePose } from './Character';
 import { Ragdoll } from './Ragdoll';
+import { RiderDynamics, type MotionFrame } from './RiderDynamics';
 
 export type PlayerState = 'riding' | 'crashed';
 
@@ -22,11 +25,14 @@ export interface PlayerSnapshot extends VehicleSnapshot {
 
 const _v = new THREE.Vector3();
 const _g = new THREE.Vector3();
+const _q = new THREE.Quaternion();
 
 /** Glues input -> active vehicle -> character pose, and owns crash / respawn flow. */
 export class PlayerController {
   vehicle: Vehicle;
   readonly character = new Character();
+  /** Body motion layered on top of the vehicle's pose. */
+  readonly motion = new RiderDynamics();
   readonly progress: ProgressTracker;
   readonly input = emptyInput();
   readonly ctx: VehicleContext;
@@ -100,6 +106,8 @@ export class PlayerController {
       this.attachVehicle(this.vehicle);
     }
     this.popT = 0;
+    this.motion.reset();
+    this.motion.hop();
     const p = this.vehicle.transfer().position;
     events.emit('player:switch', { from, to: id, position: { x: p.x, y: p.y, z: p.z } });
     return true;
@@ -125,6 +133,7 @@ export class PlayerController {
     const sClamped = Math.max(5, Math.min(c.length - 5, s));
     this.progress.reset(sClamped);
     this.vehicle.place(this.spawnState(sClamped, speed));
+    this.motion.reset();
     this.state = 'riding';
     this.stuckTimer = 0;
     events.emit('player:respawn', { reason });
@@ -181,7 +190,11 @@ export class PlayerController {
 
   afterStep(dt: number): void {
     if (this.state === 'riding') {
-      this.vehicle.afterStep(dt, this.ctx);
+      const v = this.vehicle;
+      v.afterStep(dt, this.ctx);
+      const tel = v.telemetry;
+      const gravity = -WORLD.gravity * v.body.gravityScale();
+      this.motion.step(dt, v.id, v.body.linvel(), v.renderQuaternion(_q), gravity, tel.grounded, SURFACE_PHYSICS[tel.surface].rough, tel.speed);
       this.checkResets(dt);
     } else if (this.ragdoll) {
       this.ragdoll.afterStep(dt);
@@ -218,6 +231,7 @@ export class PlayerController {
     } else if (this.vehicle.model.scale.x !== 1) this.vehicle.model.scale.setScalar(1);
     if (this.state === 'riding') {
       this.vehicle.pose(this.pose, this.input);
+      this.motion.apply(this.pose, dt, this.motionFrame());
       this.character.update(dt, this.pose);
     } else if (this.ragdoll) {
       this.ragdoll.render(dt, alpha);
@@ -225,6 +239,23 @@ export class PlayerController {
       this.character.setOpacity(Math.max(0, Math.min(1, 1 - fade)));
     }
     this.character.setHeadVisible(this.headVisible);
+  }
+
+  private frame: MotionFrame | null = null;
+
+  private motionFrame(): MotionFrame {
+    const v = this.vehicle;
+    const tel = v.telemetry;
+    const t = v.body.translation();
+    const f = (this.frame ??= { vehicle: v.id, quaternion: new THREE.Quaternion(), input: this.input, speed: 0, grounded: true, heading: 0, height: 0, vy: 0 });
+    f.vehicle = v.id;
+    v.renderQuaternion(f.quaternion);
+    f.speed = tel.speed;
+    f.grounded = tel.grounded;
+    f.heading = tel.heading;
+    f.height = tel.grounded ? 0 : t.y - this.world.groundLocal(t.x, t.z) - v.stats.rideHeight;
+    f.vy = v.body.linvel().y;
+    return f;
   }
 
   /** Global position of the rider (body centre). */

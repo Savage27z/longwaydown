@@ -13,6 +13,7 @@ import { FloatingOrigin } from './FloatingOrigin';
 import { PropLibrary } from './Props';
 import { Sky } from './Sky';
 import { TerrainSampler } from './TerrainSampler';
+import { yieldTask } from '../utils/yieldTask';
 
 export type WorldProgress = (p: number, msg: string) => void;
 
@@ -131,5 +132,5 @@ export class World {
 }
 
 function nextFrame(): Promise<void> {
-  return new Promise((r) => setTimeout(r, 0));
+  return yieldTask();
 }

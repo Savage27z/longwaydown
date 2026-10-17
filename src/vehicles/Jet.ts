@@ -16,6 +16,9 @@ export class Jet extends ArcadeVehicle {
   private m: THREE.Object3D;
   readonly flight = new FlightModel(() => FLIGHT.jet);
   private throttleIn = 0;
+  private pitchIn = 0;
+  private time = 0;
+  private kick = 0;
 
   constructor(physics: PhysicsWorld, state: TransferState, paint: ModelOptions = { primary: '#20262e', secondary: '#ff5a1f' }) {
     super('jet', physics, state);
@@ -26,6 +29,7 @@ export class Jet extends ArcadeVehicle {
 
   protected override preStep(dt: number, input: VehicleInput): void {
     this.throttleIn = input.throttle;
+    this.pitchIn = input.pitch;
     if (this.grounded) {
       this.gravityOverride = null;
       this.flight.recharge(dt);
@@ -33,6 +37,7 @@ export class Jet extends ArcadeVehicle {
       this.flight.bank = 0;
     }
     this.telemetry.flightMeter = this.flight.meter;
+    this.telemetry.flying = !this.grounded;
   }
 
   /** Always fly while airborne (gliding when out of fuel). */
@@ -53,6 +58,11 @@ export class Jet extends ArcadeVehicle {
   }
 
   protected animate(dt: number): void {
+    this.time += dt;
+    // Legs scissor-kick: lazy while gliding, quicker under thrust; still on the ground.
+    const rate = 4.5 + this.throttleIn * 3.5;
+    const amp = this.grounded ? 0 : 0.05 + (1 - this.throttleIn) * 0.06;
+    this.kick = damp(this.kick, Math.sin(this.time * rate) * amp, 12, dt);
     const ex = this.m.getObjectByName('exhaust');
     if (ex) {
       const on = this.flight.meter > 0 ? 0.25 + this.throttleIn * 0.95 : 0.05;
@@ -72,8 +82,14 @@ export class Jet extends ArcadeVehicle {
     out.head.set(-1.25, 0, 0);
     out.handL = this.partLocal(this.m, 'gripL', out.handL ?? new THREE.Vector3());
     out.handR = this.partLocal(this.m, 'gripR', out.handR ?? new THREE.Vector3());
-    this.partLocal(this.m, 'footL', out.footL);
-    this.partLocal(this.m, 'footR', out.footR);
+    this.partLocal(this.m, 'footL', out.footL).y += this.kick;
+    this.partLocal(this.m, 'footR', out.footR).y -= this.kick;
+    // Arch the back when pulling up, pike when diving; the bank twists the shoulders.
+    const pull = this.grounded ? 0 : this.pitchIn;
+    out.spine.x += pull * 0.16;
+    out.chest.x += pull * 0.1;
+    out.head.x += pull * 0.12;
+    out.chest.y += this.flight.bank * 0.15;
     out.kneePole.set(0, -1, 0.1);
     out.elbowPole.set(0.8, 0.6, -0.2);
     out.footYaw = 0;

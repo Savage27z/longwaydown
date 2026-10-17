@@ -111,8 +111,6 @@ export function buildJetWing(primary: string, secondary: string): THREE.Group {
   // Wing-tip stripes and a central spine.
   for (const s of [1, -1]) body.add(new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.07, 0.1).translate(s * 1.05, 0.73, 0.55), m.accent));
   body.add(new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.1, 1.0).translate(0, 0.66, 0.2), m.dark));
-  // Belly skid for ground slides.
-  body.add(new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.06, 1.3).translate(0, 0.03, 0.3), m.metal));
   mergeByMaterial(body);
   root.add(body);
   // Four small turbines under the wing.

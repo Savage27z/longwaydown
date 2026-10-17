@@ -18,12 +18,26 @@ export interface PoseTargets {
   footR: THREE.Vector3;
   kneePole: THREE.Vector3;
   elbowPole: THREE.Vector3;
-  /** Free arm: shoulder pitch (forward +), spread (outward +), elbow bend. */
-  freeArm: { pitch: number; spread: number; bend: number };
+  /** Free arms (used when the hand target is null): shoulder pitch (forward +), spread (outward +), elbow bend. */
+  armL: FreeArm;
+  armR: FreeArm;
   /** Foot yaw relative to the vehicle (boards stand sideways). */
   footYaw: number;
   /** Mirror pole X per side (symmetric stances). Boards turn it off: both knees point the same way. */
   mirrorPoles: boolean;
+}
+
+export interface FreeArm {
+  pitch: number;
+  spread: number;
+  bend: number;
+}
+
+/** Set both free arms at once. */
+export function setArms(p: PoseTargets, pitch: number, spread: number, bend: number): void {
+  p.armL.pitch = p.armR.pitch = pitch;
+  p.armL.spread = p.armR.spread = spread;
+  p.armL.bend = p.armR.bend = bend;
 }
 
 export function makePose(): PoseTargets {
@@ -39,7 +53,8 @@ export function makePose(): PoseTargets {
     footR: new THREE.Vector3(-0.1, 0.08, 0),
     kneePole: new THREE.Vector3(0, 0, 1),
     elbowPole: new THREE.Vector3(0, -0.3, -1),
-    freeArm: { pitch: 0.1, spread: 0.15, bend: 0.3 },
+    armL: { pitch: 0.1, spread: 0.15, bend: 0.3 },
+    armR: { pitch: 0.1, spread: 0.15, bend: 0.3 },
     footYaw: 0,
     mirrorPoles: true,
   };

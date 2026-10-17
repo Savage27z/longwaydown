@@ -123,9 +123,9 @@ export function applyPose(b: RigBinding, p: PoseTargets): void {
   }
 
   // Arms.
-  for (const [arm, target] of [
-    [b.armL, p.handL],
-    [b.armR, p.handR],
+  for (const [arm, target, free] of [
+    [b.armL, p.handL, p.armL],
+    [b.armR, p.handR, p.armR],
   ] as const) {
     const side = arm.side;
     if (target) {
@@ -135,8 +135,8 @@ export function applyPose(b: RigBinding, p: PoseTargets): void {
       // Free arm: swing a straight-ish arm from the shoulder.
       arm.upper.getWorldPosition(_t);
       b.root.worldToLocal(_t);
-      _v.set(0, -1, 0).applyEuler(_e.set(-p.freeArm.pitch, 0, side * p.freeArm.spread, 'XZY'));
-      _t.addScaledVector(_v, (arm.l1 + arm.l2) * Math.cos(p.freeArm.bend * 0.5) * 0.98);
+      _v.set(0, -1, 0).applyEuler(_e.set(-free.pitch, 0, side * free.spread, 'XZY'));
+      _t.addScaledVector(_v, (arm.l1 + arm.l2) * Math.cos(free.bend * 0.5) * 0.98);
       b.root.localToWorld(_t);
     }
     _pole.set(p.elbowPole.x * (p.mirrorPoles ? side : 1), p.elbowPole.y, p.elbowPole.z).applyQuaternion(_rootQ);

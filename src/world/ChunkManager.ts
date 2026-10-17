@@ -9,6 +9,7 @@ import { TerrainChunk } from './TerrainChunk';
 import type { TerrainSampler } from './TerrainSampler';
 import type { TileRequest, TileResult } from './TileBuilder';
 import { WorkerPool } from './WorkerPool';
+import { yieldTask } from '../utils/yieldTask';
 
 interface Want {
   ix: number;
@@ -210,7 +211,7 @@ export class ChunkManager {
       onProgress(1 - missing / total);
       if (missing === 0) break;
       if (this.pool.pending === 0 && this.ready.length === 0) this.plan(focusGlobal, progressS);
-      await new Promise((r) => setTimeout(r, 30));
+      await yieldTask(30);
     }
     // Finish prop colliders near the start.
     while ([...this.tiles.values()].some((t) => t.collidersPending)) this.stepColliders(5000);

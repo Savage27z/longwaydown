@@ -63,6 +63,8 @@ export class Car extends Vehicle {
   private airPitch = 0;
   private airSpin = 0;
   private maxHeight = 0;
+  private throttleIn = 0;
+  private brakeIn = 0;
 
   constructor(
     private readonly physics: PhysicsWorld,
@@ -146,6 +148,8 @@ export class Car extends Vehicle {
     for (let i = 0; i < 4; i++) if (c.wheelIsInContact(i)) contacts++;
     const grounded = contacts > 0;
 
+    this.throttleIn = input.throttle;
+    this.brakeIn = input.brake;
     // Steering (less lock at speed).
     const target = -input.steer * CAR.maxSteer * (1 - Math.min(0.7, Math.abs(speed) / CAR.steerSpeedFalloff));
     this.steer = damp(this.steer, target, 10, dt);
@@ -291,8 +295,11 @@ export class Car extends Vehicle {
     out.head.set(0.15, this.steer * 0.6, 0);
     out.handL = local('gripL', out.handL ?? new THREE.Vector3());
     out.handR = local('gripR', out.handR ?? new THREE.Vector3());
-    local('pedalL', out.footL);
-    local('pedalR', out.footR);
+    // Right foot on the gas, left foot on the brake.
+    local('pedalL', out.footL).z += this.brakeIn * 0.06;
+    local('pedalR', out.footR).z += this.throttleIn * 0.06;
+    out.footL.y -= this.brakeIn * 0.03;
+    out.footR.y -= this.throttleIn * 0.03;
     out.kneePole.set(0.15, 1, 0.6);
     out.elbowPole.set(0.6, -0.6, -0.4);
     out.footYaw = 0;

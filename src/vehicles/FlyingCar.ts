@@ -47,6 +47,7 @@ export class FlyingCar extends ArcadeVehicle {
       if (input.jumpPressed && this.flight.meter > 0.12) this.liftoff = true;
     }
     this.telemetry.flightMeter = this.flight.meter;
+    this.telemetry.flying = this.flying && !this.grounded;
   }
 
   protected override flightStep(dt: number, input: VehicleInput, ctx: VehicleContext, v: THREE.Vector3): boolean {

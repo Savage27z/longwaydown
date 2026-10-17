@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { createModel, type ModelOptions } from '../models/ModelLoader';
 import { BIKE_DIMS } from '../models/procedural/bicycle';
-import type { PoseTargets } from '../player/Character';
+import { setArms, type PoseTargets } from '../player/Character';
 import { clamp, damp } from '../utils/math';
 import { ArcadeVehicle } from './ArcadeVehicle';
 import type { TransferState, VehicleInput } from './Vehicle';
@@ -25,6 +25,7 @@ export class Bicycle extends ArcadeVehicle {
   private pedalAmt = 0;
   private sprintAmt = 0;
   private rock = 0;
+  private standAmt = 0;
   private steerAxis = new THREE.Vector3(0, 1, 0);
   private rockQ = new THREE.Quaternion();
   private static readonly FWD = new THREE.Vector3(0, 0, 1);
@@ -59,6 +60,8 @@ export class Bicycle extends ArcadeVehicle {
     this.pedaling = this.throttle > 0.1 || sprinting;
     this.pedalAmt = damp(this.pedalAmt, this.pedaling ? 1 : 0, 8, dt);
     this.sprintAmt = damp(this.sprintAmt, sprinting && this.grounded ? 1 : 0, 6, dt);
+    const coastingFast = !this.pedaling && this.telemetry.speed > 6 && this.grounded;
+    this.standAmt = damp(this.standAmt, coastingFast || !this.grounded ? 1 : 0, 6, dt);
     if (this.pedaling) {
       // Cadence follows speed (big gear), clamped to a believable 65-150 rpm; sprints spin faster.
       const revPerSec = clamp(Math.abs(fwd) / 5.5, 1.1, 2.4) + this.sprintAmt * 0.5;
@@ -95,10 +98,9 @@ export class Bicycle extends ArcadeVehicle {
     this.model.updateMatrixWorld(true);
     const tuck = this.tuck ? 1 : 0;
     const comp = this.telemetry.compression;
-    const coastingFast = !this.pedaling && this.telemetry.speed > 6 && this.grounded;
     const seat = this.local('seat', _v);
-    // Attack position when coasting fast: up off the saddle, weight back, elbows out.
-    const stand = coastingFast ? 1 : 0;
+    // Attack position when coasting fast or in the air: up off the saddle, weight back, elbows out.
+    const stand = this.standAmt;
     const sprint = this.sprintAmt;
     const pedal = this.pedalAmt * (1 - sprint);
     const ca = this.crankAngle;
@@ -123,9 +125,7 @@ export class Bicycle extends ArcadeVehicle {
       // "No-hander": arms out wide.
       out.handL = null;
       out.handR = null;
-      out.freeArm.pitch = 1.3;
-      out.freeArm.spread = 1.2;
-      out.freeArm.bend = 0.2;
+      setArms(out, 1.3, 1.2, 0.2);
     } else {
       // Wrists sit just behind and above the grips.
       out.handL = this.local('gripL', out.handL ?? new THREE.Vector3()).add(WRIST_OFFSET);

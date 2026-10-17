@@ -14,6 +14,9 @@ export interface CameraTarget {
   /** Head position for the helmet cam. */
   head: THREE.Vector3;
   grounded: boolean;
+  /** Flying (hover car / jet in flight). */
+  flying: boolean;
+  boosting: boolean;
   vehicle: VehicleId;
   /** Ground height under a local point. */
   groundAt: (x: number, z: number) => number;
@@ -24,6 +27,8 @@ const _look = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _fwd = new THREE.Vector3();
 const _up = new THREE.Vector3();
+const _side = new THREE.Vector3();
+const _focus = new THREE.Vector3();
 
 /**
  * Third-person chase camera with per-vehicle profiles, speed-based FOV, trauma shake,
@@ -46,6 +51,11 @@ export class ChaseCamera {
   private fov = 70;
   private time = 0;
   private primed = false;
+  private focusY = 0;
+  private focusVY = 0;
+  private air = 0;
+  private roll = 0;
+  private flightPitch = 0;
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -117,7 +127,10 @@ export class ChaseCamera {
     if (!this.primed) {
       this.yaw = travelYaw;
       this.fov = p.fovBase;
+      this.focusY = t.position.y;
+      this.focusVY = t.velocity.y;
     }
+    this.followVertical(dt, t);
     this.yaw = dampAngle(this.yaw, travelYaw, p.yawFollow, dt);
 
     if (this.mode === 'first') {
@@ -127,16 +140,22 @@ export class ChaseCamera {
     this.camera.up.set(0, 1, 0);
 
     const far = this.mode === 'far';
-    const dist = (p.distance + (p.distancePerSpeed * kmh) / 100) * (far ? CAMERA.farDistance : 1);
+    this.air = damp(this.air, t.grounded || t.flying ? 0 : 1, t.grounded ? 3 : 1.5, dt);
+    const dist = (p.distance + (p.distancePerSpeed * kmh) / 100) * (far ? CAMERA.farDistance : 1) * (1 + this.air * CAMERA.airPullBack);
     const yaw = this.yaw + this.orbitYaw;
-    const pitch = Math.atan2(p.height * (far ? CAMERA.farHeight : 1), dist) + this.orbitPitch;
+    // Flyers: swing above the path when diving, below it when climbing.
+    const hs = Math.hypot(t.velocity.x, t.velocity.z);
+    const pathPitch = t.flying && speed > 4 ? Math.atan2(t.velocity.y, hs) : 0;
+    this.flightPitch = damp(this.flightPitch, pathPitch, 2.5, dt);
+    const pitch = clamp(Math.atan2(p.height * (far ? CAMERA.farHeight : 1), dist) + this.orbitPitch - this.flightPitch * CAMERA.flightPitchFollow, -0.3, 1.25);
     _desired.set(-Math.sin(yaw) * Math.cos(pitch) * dist, Math.sin(pitch) * dist, -Math.cos(yaw) * Math.cos(pitch) * dist);
     if (!this.primed) this.offset.copy(_desired);
     const f = 1 - Math.exp(-p.follow * dt);
     this.offset.lerp(_desired, f);
 
     const cam = this.camera;
-    cam.position.copy(t.position).add(this.offset);
+    _focus.set(t.position.x, this.focusY, t.position.z);
+    cam.position.copy(_focus).add(this.offset);
     const ground = t.groundAt(cam.position.x, cam.position.z);
     if (cam.position.y < ground + CAMERA.minClearance) cam.position.y = ground + CAMERA.minClearance;
 
@@ -145,12 +164,15 @@ export class ChaseCamera {
     _look.set(_fwd.x * ahead, p.lookHeight, _fwd.z * ahead);
     if (!this.primed) this.lookOffset.copy(_look);
     this.lookOffset.lerp(_look, 1 - Math.exp(-6 * dt));
+    // Aim between the lagging camera height and the rider, so the rider rises/drops in frame.
     _look.copy(t.position).add(this.lookOffset);
+    _look.y -= (t.position.y - this.focusY) * 0.45;
 
     this.applyShake(dt);
     cam.lookAt(_look);
+    this.applyLeanRoll(dt, t);
     this.applyRoll();
-    this.setFov(dt, p.fovBase + (p.fovPerSpeed * kmh) / 100, p.fovMax);
+    this.setFov(dt, p.fovBase + (p.fovPerSpeed * kmh) / 100 + (t.boosting ? CAMERA.boostFov : 0), p.fovMax + (t.boosting ? CAMERA.boostFov : 0));
     this.primed = true;
   }
 
@@ -169,6 +191,26 @@ export class ChaseCamera {
     cam.lookAt(_look);
     this.setFov(dt, CAMERA.firstPersonFov + (CAMERA.firstPersonFovPerSpeed * kmh) / 100, CAMERA.firstPersonFov + 20);
     this.primed = true;
+  }
+
+  /** Vertical spring with velocity feed-forward (see CAMERA.verticalStiffness). */
+  private followVertical(dt: number, t: CameraTarget): void {
+    const k = t.grounded || t.flying ? CAMERA.verticalStiffness : CAMERA.airStiffness;
+    const c = 2 * CAMERA.verticalDamping * Math.sqrt(k);
+    const h = Math.min(dt, 1 / 30);
+    this.focusVY += (k * (t.position.y - this.focusY) + c * (t.velocity.y - this.focusVY)) * h;
+    this.focusY += this.focusVY * h;
+    const lag = t.position.y - this.focusY;
+    if (Math.abs(lag) > CAMERA.maxVerticalLag) this.focusY = t.position.y - Math.sign(lag) * CAMERA.maxVerticalLag;
+  }
+
+  /** Roll a little with the bike's lean or the flyer's bank. */
+  private applyLeanRoll(dt: number, t: CameraTarget): void {
+    _side.set(1, 0, 0).applyQuaternion(t.quaternion);
+    const lean = Math.asin(clamp(_side.y, -1, 1));
+    const target = t.flying ? lean * CAMERA.bankRoll : t.grounded ? lean * CAMERA.leanRoll : 0;
+    this.roll = damp(this.roll, target, 4, dt);
+    if (Math.abs(this.roll) > 1e-4) this.camera.rotateZ(-this.roll);
   }
 
   private applyShake(dt: number): void {

@@ -255,3 +255,34 @@
 - `ArcadeVehicle.ts` is about 460 lines, a little over the module budget. It will be split when tricks move out in Phase 6.
 
 **Next (Phase 6):** pickups and buffs, the boost meter (fed by tricks, near-misses, air and speed), trick detection with combos and pop-ups, buff icons in the HUD, and the extra results stats.
+
+### Phase 5 feel pass ("the rider doesn't look like someone on a vehicle: no motion, no air, no body movement")
+- **Rider body dynamics** (`player/RiderDynamics.ts`, tuning in `config/riderMotion.ts`): the rider's body is now a damped spring between hands and feet, driven by what the vehicle actually goes through.
+  - Landings compress the legs and arms. Braking throws the body forward and acceleration pushes it back. Corners push seated drivers outward. Rough ground shakes the body. Weightlessness floats it.
+  - Air phases: takeoff pop, mid-air tuck (hips back, bike pulled up), reaching for the landing, absorbing the impact.
+  - Air controls: the torso throws into flips and the shoulders wind up into spins.
+  - The head stays level against the vehicle's lean and pitch, looks into turns and down at the landing, and glances around when slow. The chest breathes.
+  - Each vehicle has its own profile: standing riders move through the hips, seated drivers sway through the torso.
+- **Per-vehicle moves:**
+  - Bicycle: stands up in attack position in the air.
+  - Snowboard: lead arm over the nose, trailing arm back; reaches to the toes on toe-side turns and pulls back on heel-side; hips drop inside the turn; Indy grab with the back hand.
+  - Skis: angulation with the upper body facing down the hill; the inside pole plants at the start of each turn; double-poling when pushing off slowly; poles out wide in the air.
+  - Jet: legs scissor-kick, the back arches when pulling up, the shoulders follow the bank.
+  - Buggy: feet press the gas and brake pedals; the hands stay on the wheel as it turns.
+- **Switch hop:** the rider hops off one vehicle, arms out, and drops onto the next.
+- **Vehicles follow their arc in the air:** nose up off the lip, nose down into the landing.
+- **More air:**
+  - Jumps are now 26 m wide (were 12 m) and within about 5 m of the line (were up to 15 m). Kickers are 12 m wide and gaps 24 m.
+  - There are roughly 40% more jumps and more kickers. Rollers are taller.
+  - At speed, bikes and boards no longer stick to crests, so rollers and lips launch you.
+  - In bot runs, airtime went from none over 0.35 s in 1.8 km to 7 jumps in 1.2 km, up to 2.4 s and 12 m high.
+- **Camera:**
+  - Height follows on a spring with velocity feed-forward. Steady slopes track exactly, but takeoffs, landings and bumps now lag and settle, so jumps read as motion.
+  - Rolls 20% with a bike's lean and 40% with a flyer's bank.
+  - Follows the flight path when climbing or diving.
+  - Pulls back a little in the air; boost kicks the FOV.
+- **Fixes:** the jet's floating "belly skid" plank was removed. Loading and the dev bot no longer stall in background tabs, where browsers throttle timers.
+- **Dev tools:**
+  - `__film({...})` renders a run of frames and saves a contact sheet to `.shots/` (gitignored) through a dev-server-only endpoint. Its `view` option gives a camera that frames the rider.
+  - The bot now lines up on jumps and pops the lip, and logs its airtime.
+- **Tests:** 6 new body-dynamics tests (31 total).

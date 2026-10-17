@@ -4,6 +4,7 @@ import type { QualityPreset } from '../config/graphics';
 import { StatsOverlay } from './StatsOverlay';
 import { PhysicsDebug } from './PhysicsDebug';
 import { AutoRider } from './AutoRider';
+import { installFilmstrip } from './Filmstrip';
 import type { PlayMode } from '../core/PlayMode';
 import { events } from '../core/Events';
 import { VEHICLES } from '../config/vehicles';
@@ -126,5 +127,6 @@ export function installDevTools(game: Game): DevTools {
   const w = window as unknown as Record<string, unknown>;
   w.__game = game;
   w.__dev = dev;
+  installFilmstrip(game);
   return dev;
 }

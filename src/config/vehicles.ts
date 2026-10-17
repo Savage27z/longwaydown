@@ -284,6 +284,14 @@ export const RIDING = {
   landingAssist: 5.5,
   /** Air-to-ground normal blending (1/s). */
   normalSmoothing: 18,
+  /** In the air the vehicle pitches to follow its flight path at this rate (1/s), up to arcMaxPitch (rad). */
+  arcFollow: 4,
+  arcMaxPitch: 0.75,
+  /** Pull that keeps the wheels on the ground over crests (m/s²): firm when slow, light at speed
+   *  so fast riders get air off rollers and lips. Fades between 0 and crestStickSpeed (m/s). */
+  crestStick: 12,
+  crestStickFast: 2.5,
+  crestStickSpeed: 26,
   /** Distance to ground below which the rider pre-aligns to the landing slope (m). */
   landingAlignDistance: 10,
   /** Respawn speed after crashes / resets (m/s). */

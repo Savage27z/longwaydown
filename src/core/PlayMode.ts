@@ -69,6 +69,8 @@ export class PlayMode implements GameMode {
       quaternion: new THREE.Quaternion(),
       head: new THREE.Vector3(),
       grounded: true,
+      flying: false,
+      boosting: false,
       vehicle: 'bicycle',
       groundAt: (x, z) => world.groundLocal(x, z),
     };
@@ -262,6 +264,8 @@ export class PlayMode implements GameMode {
     v.renderQuaternion(t.quaternion);
     this.player.character.headPosition(t.head);
     t.grounded = v.telemetry.grounded;
+    t.flying = v.telemetry.flying;
+    t.boosting = riding && v.telemetry.boosting;
     t.vehicle = v.id;
     // Cinematic orbits for the intro and after the finish.
     if (this.run.state === 'intro' || this.dev.orbitCam) this.chase.orbit(dt, 0.55, 0.25);

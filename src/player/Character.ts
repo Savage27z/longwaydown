@@ -4,9 +4,9 @@ import { getRiderPack } from '../models/ModelLoader';
 import { gltfRig } from './rig/gltfRig';
 import { proceduralRig } from './rig/proceduralRig';
 import { applyFlail, applyPose, type RigBinding } from './rig/RigBinding';
-import { makePose, type PoseTargets } from './rig/pose';
+import { makePose, setArms, type PoseTargets } from './rig/pose';
 
-export { makePose, type PoseTargets };
+export { makePose, setArms, type PoseTargets };
 
 const _eye = new THREE.Vector3();
 const _q = new THREE.Quaternion();
@@ -48,9 +48,14 @@ export class Character {
     c.footR.lerp(target.footR, k);
     c.kneePole.lerp(target.kneePole, k);
     c.elbowPole.lerp(target.elbowPole, k);
-    c.freeArm.pitch += (target.freeArm.pitch - c.freeArm.pitch) * k;
-    c.freeArm.spread += (target.freeArm.spread - c.freeArm.spread) * k;
-    c.freeArm.bend += (target.freeArm.bend - c.freeArm.bend) * k;
+    for (const [a, b] of [
+      [c.armL, target.armL],
+      [c.armR, target.armR],
+    ] as const) {
+      a.pitch += (b.pitch - a.pitch) * k;
+      a.spread += (b.spread - a.spread) * k;
+      a.bend += (b.bend - a.bend) * k;
+    }
     c.footYaw += (target.footYaw - c.footYaw) * k;
     c.mirrorPoles = target.mirrorPoles;
     applyPose(this.binding, c);

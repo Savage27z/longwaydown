@@ -4,6 +4,7 @@ import { events } from '../core/Events';
 import type { PlayMode } from '../core/PlayMode';
 import type { VehicleInput } from '../vehicles/Vehicle';
 import { clamp, wrapAngle } from '../utils/math';
+import { yieldTask } from '../utils/yieldTask';
 
 const _g = new THREE.Vector3();
 
@@ -14,6 +15,8 @@ export interface AutoRideReport {
   crashes: { s: number; reason: string }[];
   respawns: { s: number; reason: string }[];
   lands: number;
+  /** Landings after real air (> 0.3 s). */
+  airs: { s: number; air: number; height: number; impact: number }[];
   maxKmh: number;
   splits: { km: number; t: number; kmh: number }[];
   wallMs: number;
@@ -27,6 +30,8 @@ export class AutoRider {
   enabled = false;
   lookAhead = 22;
   lateralBias = 0;
+  /** Line up on jumps/kickers ahead (and pop off the lip). */
+  seekJumps = true;
   report: AutoRideReport | null = null;
   private running = false;
 
@@ -47,8 +52,17 @@ export class AutoRider {
     const prog = p.progress.result;
     const idx = Math.min(c.count - 1, Math.round((prog.s + this.lookAhead) / c.step));
     const g = p.globalPosition(_g);
-    const tx = c.x[idx]! - c.tz[idx]! * this.lateralBias;
-    const tz = c.z[idx]! + c.tx[idx]! * this.lateralBias;
+    let bias = this.lateralBias;
+    let pop = false;
+    if (this.seekJumps) {
+      const f = c.features.find((x) => (x.type === 'jump' || x.type === 'kicker' || x.type === 'gap') && x.s > prog.s - 2 && x.s < prog.s + 160);
+      if (f) {
+        bias = f.lateral;
+        pop = Math.abs(f.s - prog.s) < 2.5;
+      }
+    }
+    const tx = c.x[idx]! - c.tz[idx]! * bias;
+    const tz = c.z[idx]! + c.tx[idx]! * bias;
     const desired = Math.atan2(tx - g.x, tz - g.z);
     const heading = p.vehicle.telemetry.heading;
     i.steer = clamp(wrapAngle(heading - desired) * 2.5, -1, 1);
@@ -56,7 +70,7 @@ export class AutoRider {
     i.brake = 0;
     i.pitch = 0;
     i.spin = 0;
-    i.jumpPressed = false;
+    i.jumpPressed = pop;
   }
 
   /** Fast-forward up to `maxSeconds` of riding (or until the finish). */
@@ -66,12 +80,15 @@ export class AutoRider {
     this.attach();
     this.enabled = true;
     const c = this.mode.world.course;
-    const report: AutoRideReport = { simSeconds: 0, progressKm: 0, finished: false, crashes: [], respawns: [], lands: 0, maxKmh: 0, splits: [], wallMs: 0 };
+    const report: AutoRideReport = { simSeconds: 0, progressKm: 0, finished: false, crashes: [], respawns: [], lands: 0, airs: [], maxKmh: 0, splits: [], wallMs: 0 };
     this.report = report;
     const offs = [
       events.on('player:crash', (e) => report.crashes.push({ s: Math.round(this.mode.player.progress.result.s), reason: e.reason })),
       events.on('player:respawn', (e) => report.respawns.push({ s: Math.round(this.mode.player.progress.result.s), reason: e.reason })),
-      events.on('player:land', () => report.lands++),
+      events.on('player:land', (l) => {
+        report.lands++;
+        if (l.airTime > 0.3) report.airs.push({ s: Math.round(this.mode.player.progress.result.s), air: +l.airTime.toFixed(2), height: +l.height.toFixed(1), impact: +l.impact.toFixed(1) });
+      }),
     ];
     const t0 = performance.now();
     let nextKm = 1;
@@ -92,7 +109,7 @@ export class AutoRider {
       }
       // Yield so worker messages (tiles) can arrive; wait longer if streaming is behind.
       const pending = this.mode.world.chunks.counts.pending;
-      await new Promise((r) => setTimeout(r, pending > 6 ? 60 : 4));
+      await yieldTask(pending > 6 ? 60 : 4);
     }
     report.wallMs = Math.round(performance.now() - t0);
     for (const off of offs) off();

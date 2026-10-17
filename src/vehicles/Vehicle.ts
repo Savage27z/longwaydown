@@ -85,6 +85,8 @@ export interface VehicleTelemetry {
   boosting: boolean;
   /** 0..1 flight/fuel meter for flying vehicles, -1 when not applicable. */
   flightMeter: number;
+  /** In powered/gliding flight (hover car, jet). */
+  flying: boolean;
 }
 
 /** Serializable snapshot for ghosts / netcode. */
@@ -113,6 +115,7 @@ export abstract class Vehicle {
     heading: 0,
     boosting: false,
     flightMeter: -1,
+    flying: false,
   };
   body!: RapierNS.RigidBody;
 

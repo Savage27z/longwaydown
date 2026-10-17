@@ -63,6 +63,20 @@ export const CAMERA = {
   farHeight: 2.3,
   /** Constant rumble on rough ground (max trauma). */
   rumble: 0.12,
+  /** Vertical follow spring (1/s² on the ground; softer in the air) and damping ratio. Velocity is
+   *  fed forward, so steady slopes track exactly and only takeoffs, landings and bumps lag. */
+  verticalStiffness: 70,
+  airStiffness: 22,
+  verticalDamping: 0.7,
+  maxVerticalLag: 2.2,
+  /** Camera roll as a fraction of the bike's lean / the flyer's bank. */
+  leanRoll: 0.2,
+  bankRoll: 0.4,
+  /** How much the chase angle follows the flight path when climbing / diving. */
+  flightPitchFollow: 0.55,
+  /** Extra distance in the air (fraction) and FOV kick while boosting (degrees). */
+  airPullBack: 0.14,
+  boostFov: 7,
 };
 
 export type CameraView = 'chase' | 'far' | 'first';
