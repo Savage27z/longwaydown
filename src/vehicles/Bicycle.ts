@@ -79,11 +79,17 @@ export class Bicycle extends ArcadeVehicle {
     const comp = this.telemetry.compression;
     const coastingFast = !this.pedaling && this.telemetry.speed > 6 && this.grounded;
     const seat = this.local('seat', _v);
-    out.hips.set(0, seat.y + 0.1 - comp * 0.12 - tuck * 0.06 + (coastingFast ? 0.1 : 0), seat.z - 0.02 - tuck * 0.05 + (coastingFast ? 0.08 : 0));
-    out.hipsRot.set(0.25 + tuck * 0.15, 0, 0);
-    out.spine.set(0.35 + tuck * 0.35 + comp * 0.15, 0, -this.lean * 0.3);
-    out.chest.set(0.1 + tuck * 0.15, 0, 0);
-    out.head.set(-(0.55 + tuck * 0.45), -this.steerVis * 0.4, 0);
+    // Attack position when coasting fast: up off the saddle, weight back, elbows out.
+    const stand = coastingFast ? 1 : 0;
+    out.hips.set(0, seat.y + 0.09 - comp * 0.14 - tuck * 0.07 + stand * 0.12, seat.z - 0.02 - tuck * 0.06 - stand * 0.03);
+    const hipPitch = 0.32 + tuck * 0.12 + stand * 0.05;
+    const spinePitch = 0.32 + tuck * 0.3 + comp * 0.18 + stand * 0.08;
+    const chestPitch = 0.12 + tuck * 0.12;
+    out.hipsRot.set(hipPitch, 0, 0);
+    out.spine.set(spinePitch, 0, -this.lean * 0.25);
+    out.chest.set(chestPitch, -this.steerVis * 0.25, 0);
+    // Keep the eyes on the trail.
+    out.head.set(-(hipPitch + spinePitch + chestPitch) * 0.85, -this.steerVis * 0.5, this.lean * 0.15);
     const grab = !this.grounded && input.trick;
     if (grab) {
       // "No-hander": arms out wide.
@@ -98,8 +104,8 @@ export class Bicycle extends ArcadeVehicle {
     }
     this.local('pedalL', out.footL).y += 0.07;
     this.local('pedalR', out.footR).y += 0.07;
-    out.kneePole.set(0, 0.3, 1);
-    out.elbowPole.set(0.5, -0.4, -1);
+    out.kneePole.set(0.12, 0.25, 1);
+    out.elbowPole.set(0.8, -0.35, -0.45);
     out.footYaw = 0;
     return out;
   }

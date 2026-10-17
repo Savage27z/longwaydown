@@ -55,7 +55,7 @@ export interface GameEvents {
   'player:land': LandInfo;
   'player:crash': { reason: string; penalty: number };
   'player:respawn': { reason: string };
-  'camera:mode': { mode: 'chase' | 'helmet' };
+  'camera:mode': { mode: 'chase' | 'far' | 'first' };
 }
 
 export const events = new EventBus<GameEvents>();

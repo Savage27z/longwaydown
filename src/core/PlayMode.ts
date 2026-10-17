@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import type { MapId } from '../config/maps';
 import { SURFACE_PHYSICS } from '../config/surfaces';
+import { CAMERA, CAMERA_VIEW_LABELS } from '../config/camera';
+import { Toast } from '../ui/Toast';
+import { SpeedLines } from '../fx/SpeedLines';
 import { ChaseCamera, type CameraTarget } from '../camera/ChaseCamera';
 import { FlyCam } from '../camera/FlyCam';
 import { PlayerController } from '../player/PlayerController';
@@ -18,6 +21,8 @@ export class PlayMode implements GameMode {
   private global = new THREE.Vector3();
   private offs: (() => void)[] = [];
   private target: CameraTarget;
+  private toast: Toast;
+  private speedLines: SpeedLines;
 
   private constructor(
     private readonly game: Game,
@@ -26,6 +31,8 @@ export class PlayMode implements GameMode {
     this.player = new PlayerController(game, world, 'bicycle', world.courseProps.startS - 10);
     this.chase = new ChaseCamera(game.renderer.camera, game.input);
     this.flyCam = new FlyCam(game.renderer.camera, game.input, world);
+    this.toast = new Toast(game.ui);
+    this.speedLines = new SpeedLines(game.renderer.camera);
     this.target = {
       position: new THREE.Vector3(),
       velocity: new THREE.Vector3(),
@@ -65,8 +72,9 @@ export class PlayMode implements GameMode {
 
     if (input.framePressed('camera')) {
       const mode = this.chase.toggleMode();
-      this.player.headVisible = mode === 'chase';
+      this.player.headVisible = mode !== 'first';
       events.emit('camera:mode', { mode });
+      this.toast.show(`${CAMERA_VIEW_LABELS[mode]}  ·  C to switch`);
     }
     if (input.framePressed('respawn')) this.player.respawnAt(this.player.progress.result.s, 6, 'manual');
 
@@ -81,8 +89,11 @@ export class PlayMode implements GameMode {
   private updateCamera(dt: number): void {
     if (this.dev.flyCam) {
       this.flyCam.update(dt);
+      this.speedLines.update(dt, 0);
       return;
     }
+    const riding = this.player.state === 'riding';
+    this.speedLines.update(dt, riding ? this.player.vehicle.telemetry.speed : 0);
     const v = this.player.vehicle;
     const t = this.target;
     this.player.focusLocal(t.position);
@@ -98,7 +109,7 @@ export class PlayMode implements GameMode {
     // Rough ground rumbles the camera a little.
     if (t.grounded) {
       const rough = SURFACE_PHYSICS[v.telemetry.surface].rough;
-      const rumble = rough * Math.min(1, v.telemetry.speed / 30) * 0.32;
+      const rumble = rough * Math.min(1, v.telemetry.speed / 35) * CAMERA.rumble;
       if (this.chase.trauma < rumble) this.chase.trauma = rumble;
     }
     this.chase.update(dt, t, t.grounded);
@@ -139,6 +150,8 @@ export class PlayMode implements GameMode {
 
   dispose(): void {
     for (const off of this.offs) off();
+    this.toast.dispose();
+    this.speedLines.dispose();
     this.player.dispose();
     this.world.dispose();
   }

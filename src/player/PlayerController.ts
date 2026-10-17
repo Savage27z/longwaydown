@@ -41,6 +41,7 @@ export class PlayerController {
   private stuckTimer = 0;
   private offShift: () => void;
   private simTime = 0;
+  private steerSmooth = 0;
 
   constructor(
     private readonly game: Game,
@@ -121,7 +122,12 @@ export class PlayerController {
     const live = !this.frozen;
     i.throttle = live ? inp.value('accelerate') : 0;
     i.brake = live ? inp.value('brake') : 1;
-    i.steer = live ? inp.axis('steerLeft', 'steerRight') : 0;
+    // Ramp steering so digital keys feel analog (and sticks don't twitch).
+    const raw = live ? inp.axis('steerLeft', 'steerRight') : 0;
+    const rising = Math.abs(raw) > Math.abs(this.steerSmooth) && Math.sign(raw) === Math.sign(this.steerSmooth || raw);
+    const rate = (rising ? RIDING.steerRise : RIDING.steerFall) / 60;
+    this.steerSmooth += Math.max(-rate, Math.min(rate, raw - this.steerSmooth));
+    i.steer = this.steerSmooth;
     i.pitch = inp.axis('pitchBack', 'pitchForward');
     i.spin = inp.axis('spinLeft', 'spinRight');
     i.jumpPressed = live && inp.stepPressed('jump');

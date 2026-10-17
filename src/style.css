@@ -148,3 +148,27 @@ body {
   font-size: 34px;
   text-shadow: 0 3px 12px rgba(0, 0, 0, 0.5);
 }
+
+.toast {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translate(-50%, -12px) skewX(-10deg);
+  padding: 8px 18px;
+  border-radius: 6px;
+  background: var(--glass-strong);
+  border-left: 4px solid var(--accent);
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: 0.5px;
+  font-size: 15px;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+  z-index: 30;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0) skewX(-10deg);
+}

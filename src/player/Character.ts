@@ -103,12 +103,12 @@ export class Character {
     this.root.getWorldQuaternion(_q);
 
     // Legs.
-    for (const [hip, knee, foot, target] of [
-      [b.hipL, b.kneeL, b.footL, p.footL],
-      [b.hipR, b.kneeR, b.footR, p.footR],
+    for (const [side, hip, knee, foot, target] of [
+      [1, b.hipL, b.kneeL, b.footL, p.footL],
+      [-1, b.hipR, b.kneeR, b.footR, p.footR],
     ] as const) {
       this.root.localToWorld(_v.copy(target));
-      _pole.copy(p.kneePole).applyQuaternion(_q);
+      _pole.set(p.kneePole.x * side, p.kneePole.y, p.kneePole.z).applyQuaternion(_q);
       solveTwoBone(hip, knee, LIMBS.thigh, LIMBS.shin, _v, _pole);
       // Keep feet level with the vehicle (plus stance yaw).
       foot.parent!.getWorldQuaternion(_q2);

@@ -101,3 +101,25 @@
 - There is no HUD, timer, checkpoints or menus yet (Phase 4). R resets onto the line at your current position rather than a checkpoint.
 - No particles or audio yet.
 - The rider pose is approximate in places. The bike can't do manuals or wheelies (motorbike only, Phase 5).
+
+### Phase 3 tuning pass (after first feel check)
+- **Speed:** the top speed is now 137 km/h (soft cap), with less aero drag, 1.5× arcade gravity, stronger pedalling up to 54 km/h, and boost up to 173 km/h. The bot's average speed went from 70 to 95 km/h; its top speed is now 143 km/h.
+- **Course length:** Snow Peak is now 23.5 km with a 4,000 m drop, and Green Ridge is about 24 km with a 3,500 m drop, so a run still takes 15+ minutes. The bot's perfect line takes 14.8 min.
+- **Steering:**
+  - Input is ramped (about 0.14 s to full lock), so keys feel analog.
+  - Grip is higher (2.1 g), so carves hold the line instead of washing out.
+  - The turn rate at speed is higher.
+- **Jumps and landings:**
+  - Hops are higher.
+  - A 0.2 s jump buffer plus 0.16 s of coyote time means pressing Space at a lip pops you off it.
+  - The landing assist is stronger and starts at 10 m.
+  - Landings are more forgiving: crashes only above 68° or a 26 m/s impact.
+- **Camera:**
+  - Lower and closer framing that looks further ahead, with less FOV stretch so the rider stays readable at speed, and less rumble.
+  - C cycles **Chase → Far chase → First person**, with a toast. First person shows the bars and hands, and follows the bike's pitch and half its lean.
+- **Character:** rebuilt with smooth shading and better proportions:
+  - Tapered torso with collar, zip and stripe. Joint caps at shoulders, elbows, hips and knees. Tapered limbs, shaped gloves with thumbs, boots with soles. Head with nose and ears.
+  - Proper ski helmet with vents, and wrap-around goggles.
+  - Meshes are merged per bone and material, so there are fewer draw calls.
+  - The bike pose is reworked: flat back, eyes up, elbows out, knees tracking forward, and an attack stance when coasting fast.
+- **Speed lines:** radial streaks at the screen edges above 60 km/h (`fx/SpeedLines.ts`).

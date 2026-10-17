@@ -38,6 +38,9 @@ export abstract class ArcadeVehicle extends Vehicle {
   protected allowSwitch = false;
   protected tuck = false;
   protected jumpGrace = 0;
+  /** Buffered jump press (s left) and whether the coyote jump was used this airtime. */
+  protected jumpBufferT = 0;
+  protected coyoteUsed = false;
   protected perpDist = 0;
   protected visualDrop = 0;
   protected airGroundDist = Infinity;
@@ -110,6 +113,7 @@ export abstract class ArcadeVehicle extends Vehicle {
     const lv = this.body.linvel();
     const v = this.v.set(lv.x, lv.y, lv.z);
     this.jumpGrace = Math.max(0, this.jumpGrace - dt);
+    this.jumpBufferT = input.jumpPressed ? RIDING.jumpBuffer : Math.max(0, this.jumpBufferT - dt);
 
     // --- Ground probes (front / rear) ---
     const hx = Math.sin(this.heading);
@@ -165,13 +169,17 @@ export abstract class ArcadeVehicle extends Vehicle {
     this.boostingFlag(input.boost && mods.boostAvailable);
     if (grounded) {
       this.groundStep(dt, input, ctx, v, n, dist, sp.grip * (sm.grip ?? 1), sp.rolling * (sm.rolling ?? 1), sp.softDrag * (sm.drag ?? 1));
-      if (input.jumpPressed && this.groundTime > 0.05 && s.jumpSpeed > 0) {
-        const vn = v.dot(n);
-        v.addScaledVector(n, Math.max(0, -vn) + s.jumpSpeed * this.jumpMultiplier());
-        this.jumpGrace = RIDING.jumpGrace;
+      if (this.jumpBufferT > 0 && this.groundTime > 0.03 && s.jumpSpeed > 0) {
+        this.doJump(v, n);
         grounded = false;
+        this.coyoteUsed = true;
       }
     } else {
+      // Coyote time: a late press right after leaving a lip still pops (ollie off kickers).
+      if (this.jumpBufferT > 0 && !this.coyoteUsed && this.airTime < RIDING.coyoteTime && s.jumpSpeed > 0) {
+        this.doJump(v, n);
+        this.coyoteUsed = true;
+      }
       this.airStep(dt, input, v);
     }
 
@@ -191,6 +199,7 @@ export abstract class ArcadeVehicle extends Vehicle {
       this.groundTime += dt;
       this.airTime = 0;
       this.tookOff = false;
+      if (this.jumpGrace <= 0) this.coyoteUsed = false;
     } else {
       this.groundTime = 0;
       this.airTime += dt;
@@ -205,6 +214,13 @@ export abstract class ArcadeVehicle extends Vehicle {
     this.tangentSpeedBefore = v.clone().addScaledVector(n, -v.dot(n)).length();
     this.computeQuat();
     this.updateTelemetry(v, n);
+  }
+
+  private doJump(v: THREE.Vector3, n: THREE.Vector3): void {
+    const vn = v.dot(n);
+    v.addScaledVector(n, Math.max(0, -vn) + this.stats.jumpSpeed * this.jumpMultiplier());
+    this.jumpGrace = RIDING.jumpGrace;
+    this.jumpBufferT = 0;
   }
 
   /** Jump strength multiplier hook (charged hops etc.). */
@@ -283,9 +299,10 @@ export abstract class ArcadeVehicle extends Vehicle {
     if (input.trick) this.grabTime += dt;
     // Landing assist near the ground: settle toward the nearest clean orientation.
     if (this.airGroundDist < RIDING.landingAlignDistance) {
-      if (Math.abs(input.pitch) < 0.1) this.trickPitch = damp(this.trickPitch, Math.round(this.trickPitch / TWO_PI) * TWO_PI, 3, dt);
+      const k = RIDING.landingAssist;
+      if (Math.abs(input.pitch) < 0.1) this.trickPitch = damp(this.trickPitch, Math.round(this.trickPitch / TWO_PI) * TWO_PI, k, dt);
       const yawStep = this.allowSwitch ? Math.PI : TWO_PI;
-      if (Math.abs(input.spin) < 0.1) this.trickYaw = damp(this.trickYaw, Math.round(this.trickYaw / yawStep) * yawStep, 3, dt);
+      if (Math.abs(input.spin) < 0.1) this.trickYaw = damp(this.trickYaw, Math.round(this.trickYaw / yawStep) * yawStep, k, dt);
     }
     if (this.telemetry.boosting) {
       _x.set(Math.sin(this.heading), 0, Math.cos(this.heading));

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAMERA, CAMERA_PROFILES, type CameraProfile } from '../config/camera';
+import { CAMERA, CAMERA_PROFILES, type CameraProfile, type CameraView } from '../config/camera';
 import type { VehicleId } from '../config/vehicles';
 import type { Input } from '../core/Input';
 import { clamp, damp, dampAngle } from '../utils/math';
@@ -23,6 +23,7 @@ const _desired = new THREE.Vector3();
 const _look = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _fwd = new THREE.Vector3();
+const _up = new THREE.Vector3();
 
 /**
  * Third-person chase camera with per-vehicle profiles, speed-based FOV, trauma shake,
@@ -30,7 +31,7 @@ const _fwd = new THREE.Vector3();
  * Smoothing is applied to the offset from the rider, so the camera never lags at speed.
  */
 export class ChaseCamera {
-  mode: 'chase' | 'helmet' = 'chase';
+  mode: CameraView = 'chase';
   trauma = 0;
   private profile: CameraProfile = { ...CAMERA_PROFILES.bicycle };
   private yaw = 0;
@@ -48,8 +49,12 @@ export class ChaseCamera {
     private readonly input: Input,
   ) {}
 
-  toggleMode(): 'chase' | 'helmet' {
-    this.mode = this.mode === 'chase' ? 'helmet' : 'chase';
+  /** Cycle chase -> far -> first person. */
+  toggleMode(): CameraView {
+    this.mode = this.mode === 'chase' ? 'far' : this.mode === 'far' ? 'first' : 'chase';
+    const near = this.mode === 'first' ? CAMERA.firstPersonNear : CAMERA.thirdPersonNear;
+    this.camera.near = near;
+    this.camera.updateProjectionMatrix();
     return this.mode;
   }
 
@@ -100,14 +105,16 @@ export class ChaseCamera {
     }
     this.yaw = dampAngle(this.yaw, travelYaw, p.yawFollow, dt);
 
-    if (this.mode === 'helmet') {
-      this.updateHelmet(dt, t, kmh);
+    if (this.mode === 'first') {
+      this.updateFirstPerson(dt, t, kmh);
       return;
     }
+    this.camera.up.set(0, 1, 0);
 
-    const dist = p.distance + (p.distancePerSpeed * kmh) / 100;
+    const far = this.mode === 'far';
+    const dist = (p.distance + (p.distancePerSpeed * kmh) / 100) * (far ? CAMERA.farDistance : 1);
     const yaw = this.yaw + this.orbitYaw;
-    const pitch = Math.atan2(p.height, dist) + this.orbitPitch;
+    const pitch = Math.atan2(p.height * (far ? CAMERA.farHeight : 1), dist) + this.orbitPitch;
     _desired.set(-Math.sin(yaw) * Math.cos(pitch) * dist, Math.sin(pitch) * dist, -Math.cos(yaw) * Math.cos(pitch) * dist);
     if (!this.primed) this.offset.copy(_desired);
     const f = 1 - Math.exp(-p.follow * dt);
@@ -132,17 +139,20 @@ export class ChaseCamera {
     this.primed = true;
   }
 
-  private updateHelmet(dt: number, t: CameraTarget, kmh: number): void {
+  /** Rider's-eye view: sits at the head, follows the bike's pitch and half of its lean. */
+  private updateFirstPerson(dt: number, t: CameraTarget, kmh: number): void {
     const cam = this.camera;
-    cam.position.copy(t.head);
     _fwd.set(0, 0, 1).applyQuaternion(t.quaternion);
-    _fwd.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.orbitYaw);
-    _look.copy(cam.position).addScaledVector(_fwd, 10);
-    _look.y += -0.6 + this.orbitPitch * -4;
-    this.applyShake(dt);
+    _up.set(0, 1, 0).applyQuaternion(t.quaternion);
+    // Slightly behind/above the eyes so the bars and hands sit at the bottom of the frame.
+    cam.position.copy(t.head).addScaledVector(_fwd, -0.06).addScaledVector(_up, 0.07);
+    _fwd.applyAxisAngle(_up, this.orbitYaw);
+    _look.copy(cam.position).addScaledVector(_fwd, 12);
+    _look.addScaledVector(_up, -2.7 - this.orbitPitch * 6);
+    cam.up.set(0, 1, 0).lerp(_up, 0.45).normalize();
+    this.applyShake(dt * 1.5);
     cam.lookAt(_look);
-    this.applyRoll();
-    this.setFov(dt, CAMERA.helmetFov + kmh * 0.08, CAMERA.helmetFov + 18);
+    this.setFov(dt, CAMERA.firstPersonFov + (CAMERA.firstPersonFovPerSpeed * kmh) / 100, CAMERA.firstPersonFov + 20);
     this.primed = true;
   }
 

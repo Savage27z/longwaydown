@@ -20,16 +20,16 @@ export interface CameraProfile {
 }
 
 const bike: CameraProfile = {
-  distance: 4.6,
-  height: 1.7,
-  lookHeight: 1.1,
-  lookAhead: 6,
-  fovBase: 66,
-  fovPerSpeed: 16,
-  fovMax: 92,
-  follow: 9,
-  yawFollow: 4.5,
-  distancePerSpeed: 1.1,
+  distance: 4.3,
+  height: 1.35,
+  lookHeight: 1.05,
+  lookAhead: 9,
+  fovBase: 68,
+  fovPerSpeed: 14,
+  fovMax: 90,
+  follow: 11,
+  yawFollow: 6.5,
+  distancePerSpeed: 0.3,
 };
 
 export const CAMERA_PROFILES: Record<VehicleId, CameraProfile> = {
@@ -53,5 +53,17 @@ export const CAMERA = {
   shakeDecay: 1.8,
   shakeMaxOffset: 0.35,
   shakeMaxRoll: 0.05,
-  helmetFov: 82,
+  /** First-person view. */
+  firstPersonFov: 84,
+  firstPersonFovPerSpeed: 12,
+  firstPersonNear: 0.05,
+  thirdPersonNear: 0.3,
+  /** Far chase view multipliers. */
+  farDistance: 1.9,
+  farHeight: 2.3,
+  /** Constant rumble on rough ground (max trauma). */
+  rumble: 0.12,
 };
+
+export type CameraView = 'chase' | 'far' | 'first';
+export const CAMERA_VIEW_LABELS: Record<CameraView, string> = { chase: 'Chase cam', far: 'Far chase cam', first: 'First person' };
