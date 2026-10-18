@@ -451,3 +451,20 @@ Goal: the mountain should look like a lively race venue, not primitives on an em
   - Green Ridge (26 km): all 8 finished between 10:44 and about 14:00.
   - Snow Peak: the test player was 2nd on a snowboard, with motor vehicles fastest. The snow baseline pace was raised after this race.
   - In the Icy Switchbacks, snowboard bots improved from 77–80 km/h with 16–17 s stalled per 50 s, to 95–99 km/h with no stalls.
+
+### Step E feel pass ("too fast and too perfect: bots must make mistakes")
+- **Mistakes for every bot** (`BotDriver.mistake`, rates in `BOT_MISTAKES`):
+  - Slips, at 0.03/s plus up to 0.09/s for lower skill: running wide, lifting off the throttle, nervous braking, wobbles. Steering slips are gentler at speed.
+  - Misjudged lips that don't get popped.
+  - Fumbled airs on real jumps, which often end in a bad-landing crash.
+  - The steering line always carries a little wobble.
+- **Slower, more human pace:**
+  - Skill levels 0.54–0.9 (were 0.74–0.98).
+  - Boost on 15–55% of straights (was 55–100%).
+  - Softer corner speeds.
+  - Ghost pace band 0.8–1.0 of nominal, times a skill factor.
+- **Ghosts slip and crash too:** random slow-downs (45% pace for 1.5–3.5 s) and occasional 6 s crash stops with the crash penalty.
+- **Rubber band:** eases off by up to 14% when a bot is ahead of the player, and pushes up to 8% when it's behind (at 350 m).
+- **Headless Green Ridge race** (test player on an MTB boosting half the time):
+  - 7 of 8 riders finished within 57 s, with the test player 4th, 0.4 s behind 3rd.
+  - Bots crash a few times per race, mostly landings.

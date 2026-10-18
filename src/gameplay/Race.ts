@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { BOT_LEVELS, BOT_NAMES, BOT_PAINTS, BOT_VEHICLES, RACE } from '../config/race';
+import { BOT_LEVELS, BOT_MISTAKES, BOT_NAMES, BOT_PAINTS, BOT_VEHICLES, RACE } from '../config/race';
+import { RIDING } from '../config/vehicles';
 import { MAPS } from '../config/maps';
 import { OUTFITS, type OutfitId, type RiderLook } from '../config/riders';
 import type { VehicleId } from '../config/vehicles';
@@ -34,6 +35,9 @@ export interface RaceEntry {
   lastS: number;
   /** Seconds before a ghost may become physical again (no flip-flopping at the physics edge). */
   ghostHold: number;
+  /** Ghost slips: seconds left of a slow-down or a crash stop. */
+  ghostSlow: number;
+  ghostStop: number;
 }
 
 /** Vehicles whose progress says nothing about the ground pace (start run-up, wingsuit glide). */
@@ -81,7 +85,7 @@ export class Race {
     private readonly finishS: number,
     private readonly checkpoints: number[],
   ) {
-    this.local = { id: 'you', name: 'You', kind: 'local', rider: player, driver: null, color: '#ff5a1f', penalties: 0, finishTime: null, pace: 0, lastS: spawnS, ghostHold: 0 };
+    this.local = { id: 'you', name: 'You', kind: 'local', rider: player, driver: null, color: '#ff5a1f', penalties: 0, finishTime: null, pace: 0, lastS: spawnS, ghostHold: 0, ghostSlow: 0, ghostStop: 0 };
     this.entries.push(this.local);
     const biome = MAPS[world.mapId].biome;
     const rng = makeRng(`race:${world.mapId}`);
@@ -95,7 +99,7 @@ export class Race {
       const rider = new PlayerController(game, world, 'onFoot', spawnS, { local: false, source: driver, look, paint: { primary, secondary } });
       rider.lastGround = vehicle;
       driver.rider = rider;
-      const entry: RaceEntry = { id: `bot${k}`, name: names[k]!, kind: 'bot', rider, driver, color: primary, penalties: 0, finishTime: null, pace: nominal(vehicle), lastS: spawnS, ghostHold: 0 };
+      const entry: RaceEntry = { id: `bot${k}`, name: names[k]!, kind: 'bot', rider, driver, color: primary, penalties: 0, finishTime: null, pace: nominal(vehicle), lastS: spawnS, ghostHold: 0, ghostSlow: 0, ghostStop: 0 };
       rider.resetS = () => this.respawnS(entry);
       rider.onEvent = (type, payload) => {
         if (type === 'player:crash' && this.lastRunState === 'running' && entry.finishTime === null) entry.penalties += (payload as { penalty: number }).penalty;
@@ -137,6 +141,8 @@ export class Race {
       e.rider.frozen = true;
       e.pace = nominal(e.rider.lastGround);
       e.ghostHold = 0;
+      e.ghostSlow = 0;
+      e.ghostStop = 0;
       if (e.driver) e.driver.push = 1;
     }
   }
@@ -191,15 +197,30 @@ export class Race {
         e.finishTime = this.time + e.penalties;
         r.autoBrake = true;
       }
-      // Rubber band: ease off well ahead of the player, push when well behind.
+      // Rubber band: ease off well ahead of the player, push a little when well behind.
       const band = Math.max(-1, Math.min(1, (s - playerS) / RACE.bandDistance));
-      if (e.driver) e.driver.push = 1 - band * RACE.bandPush;
+      if (e.driver) e.driver.push = 1 - band * (band > 0 ? RACE.bandEase : RACE.bandPush);
       const push = e.driver?.push ?? 1;
       // Ghosts coast at the learned pace, kept within reason of what the vehicle really does.
       const base = nominal(r.lastGround);
       const [lo, hi] = RACE.ghostPaceBand;
-      const skill = 0.94 + (e.driver?.skill.level ?? 0.9) * 0.06;
-      const ghostPace = Math.max(base * lo, Math.min(base * hi, e.pace)) * push * skill;
+      const level = e.driver?.skill.level ?? 0.8;
+      const skill = 0.84 + level * 0.14;
+      let ghostPace = Math.max(base * lo, Math.min(base * hi, e.pace)) * push * skill;
+      // Ghosts slip and crash too (same odds as riding for real), so nobody coasts a perfect line.
+      if (r.ghost && run.state === 'running' && e.finishTime === null && simDt > 0) {
+        const M = BOT_MISTAKES;
+        e.ghostSlow = Math.max(0, e.ghostSlow - simDt);
+        e.ghostStop = Math.max(0, e.ghostStop - simDt);
+        const slipRate = M.baseRate + (1 - level) * M.skillRate;
+        if (e.ghostSlow <= 0 && Math.random() < slipRate * simDt) e.ghostSlow = M.ghostSlowTime[0] + Math.random() * (M.ghostSlowTime[1] - M.ghostSlowTime[0]);
+        if (e.ghostStop <= 0 && Math.random() < M.ghostCrashRate * (1.2 - level) * simDt) {
+          e.ghostStop = M.ghostCrashTime;
+          e.penalties += RIDING.crashPenalty;
+        }
+        if (e.ghostStop > 0) ghostPace = 0;
+        else if (e.ghostSlow > 0) ghostPace *= M.ghostSlowFactor;
+      }
       // Ghost hand-over: no colliders under (or just ahead of) a bot means it can't ride there.
       if (!r.ghost) {
         r.globalPosition(_a);
@@ -211,7 +232,9 @@ export class Race {
           e.ghostHold = RACE.ghostHold;
         }
       } else {
-        r.ghostSpeed = e.finishTime !== null ? Math.max(0, r.ghostSpeed - 6 * simDt) : ghostPace;
+        // Ease in and out of slips rather than snapping speed.
+        const target = e.finishTime !== null ? 0 : ghostPace;
+        r.ghostSpeed += Math.max(-8 * simDt, Math.min(4 * simDt, target - r.ghostSpeed));
         r.ghostGlobal(_a);
         // Back to physics where colliders cover the ghost and well ahead of it (hysteresis vs the entry probe).
         this.world.courseAt(r.progress.result.s + RACE.ghostProbeAhead * 2.5, 0, _b);

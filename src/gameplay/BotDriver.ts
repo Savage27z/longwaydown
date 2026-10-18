@@ -1,17 +1,19 @@
 import * as THREE from 'three';
+import { BOT_MISTAKES } from '../config/race';
 import type { VehicleId } from '../config/vehicles';
 import type { InputSource } from '../player/InputSource';
 import type { PlayerController } from '../player/PlayerController';
 import type { VehicleInput } from '../vehicles/Vehicle';
 import type { World } from '../world/World';
 import { clamp, wrapAngle } from '../utils/math';
+import { makeRng, type Rng } from '../utils/rng';
 
 const _g = new THREE.Vector3();
 /** Gravity-only vehicles. */
 const GLIDERS = new Set<VehicleId>(['snowboard', 'skis']);
 
 export interface BotSkill {
-  /** 0..1: line accuracy, boost use, jump commitment. */
+  /** 0..1: line accuracy, boost use, jump commitment, how rarely it makes mistakes. */
   level: number;
   /** Preferred lane: metres right of the course line. */
   lane: number;
@@ -19,21 +21,37 @@ export interface BotSkill {
   seed: number;
 }
 
+/** A slip a human rider makes: runs wide, backs off, brakes nervously, gets wobbly. */
+type Mistake = { kind: 'wide' | 'lift' | 'brake' | 'wobble'; t: number; dir: number };
+
 /**
  * A bot's controls, from the same information a player has: the course line ahead, the jumps on
  * it and its own speed. It runs off the summit, flies the wingsuit down toward the line, then
- * rides its lane with boost on the straights and pops the lips it lines up for.
+ * rides its lane with boost on the straights and pops the lips it lines up for. Like a person it
+ * makes mistakes (more often the lower its skill): wide lines, lifts, nervous braking, wobbles,
+ * missed lips and fumbled landings that can end in a real crash.
  */
 export class BotDriver implements InputSource {
   rider: PlayerController | null = null;
   /** Race rubber band: >1 pushes harder (more boost), <1 eases off. */
   push = 1;
+  /** Mistakes made so far (for tests / tuning). */
+  mistakes = 0;
   private t = 0;
+  private rng: Rng;
+  private slip: Mistake | null = null;
+  /** The jump (by course s) this bot decided to skip, and whether it fumbles the current air. */
+  private skipJumpS = -1;
+  private decidedJumpS = -1;
+  private fumble = 0;
+  private wasGrounded = true;
 
   constructor(
     private readonly world: World,
     readonly skill: BotSkill,
-  ) {}
+  ) {
+    this.rng = makeRng(`bot:${skill.seed}`);
+  }
 
   read(i: VehicleInput): void {
     i.throttle = 0;
@@ -47,11 +65,62 @@ export class BotDriver implements InputSource {
     i.trick = false;
     const p = this.rider;
     if (!p) return;
-    this.t += 1 / 60;
+    const dt = 1 / 60;
+    this.t += dt;
     const id = p.vehicle.id;
     if (id === 'onFoot') this.run(p, i);
     else if (id === 'wingsuit') this.fly(p, i);
-    else this.ride(p, i);
+    else {
+      this.ride(p, i);
+      if (!p.frozen) this.mistake(p, i, dt);
+    }
+  }
+
+  /** Mistakes per second: everyone makes some, weaker riders far more. */
+  private get rate(): number {
+    const m = BOT_MISTAKES;
+    return (m.baseRate + (1 - this.skill.level) * m.skillRate) * (2 - this.push);
+  }
+
+  private mistake(p: PlayerController, i: VehicleInput, dt: number): void {
+    const tel = p.vehicle.telemetry;
+    // Fumbled air: on a real jump (not a hop off a bump) it may throw the rotation off and land
+    // badly, often a crash. Decided once per air, once it has lasted a moment.
+    if (tel.grounded) this.wasGrounded = true;
+    else if (this.wasGrounded && tel.airTime > 0.3 && p.heightAboveGround() > 1.5) {
+      this.wasGrounded = false;
+      this.fumble = this.rng() < BOT_MISTAKES.fumbleChance * (1.2 - this.skill.level) ? 0.35 + this.rng() * 0.5 : 0;
+      if (this.fumble > 0) this.mistakes++;
+    }
+    if (!tel.grounded && this.fumble > 0) {
+      this.fumble -= dt;
+      i.pitch = this.skill.seed > 5 ? 1 : -1;
+      i.spin = 0.6;
+    }
+    // Ongoing slip.
+    const s = this.slip;
+    if (s) {
+      s.t -= dt;
+      // Steering slips are gentler at speed (a wide line, not a swerve into the trees).
+      const k = clamp(18 / Math.max(tel.speed, 1), 0.25, 1);
+      if (s.kind === 'wide') i.steer = clamp(i.steer + s.dir * 0.55 * k, -1, 1);
+      else if (s.kind === 'lift') {
+        i.throttle = 0;
+        i.boost = false;
+      } else if (s.kind === 'brake') {
+        i.brake = Math.max(i.brake, 0.55);
+        i.throttle = 0;
+        i.boost = false;
+      } else i.steer = clamp(i.steer + Math.sin(this.t * 9) * 0.7 * k, -1, 1);
+      if (s.t <= 0) this.slip = null;
+      return;
+    }
+    if (!tel.grounded || tel.speed < 8 || this.rng() > this.rate * dt) return;
+    const r = this.rng();
+    const kind: Mistake['kind'] = r < 0.35 ? 'wide' : r < 0.6 ? 'lift' : r < 0.8 ? 'brake' : 'wobble';
+    const dur = { wide: [1.2, 2.6], lift: [1, 3], brake: [0.5, 1.3], wobble: [1, 2] }[kind];
+    this.slip = { kind, t: dur[0]! + this.rng() * (dur[1]! - dur[0]!), dir: this.rng() < 0.5 ? -1 : 1 };
+    this.mistakes++;
   }
 
   /** Steer toward a point `ahead` m down the line, `lat` m to its right. */
@@ -63,8 +132,8 @@ export class BotDriver implements InputSource {
     const tz = _g.z;
     const pos = p.globalPosition(_g);
     const sk = this.skill;
-    // Lower skill: a slow wobble off the ideal heading.
-    const wobble = (1 - sk.level) * 0.22 * Math.sin(this.t * 1.3 + sk.seed * 5.1);
+    // Never a perfect line: a slow wobble off the ideal heading, bigger for weaker riders.
+    const wobble = (0.06 + (1 - sk.level) * 0.3) * Math.sin(this.t * 1.3 + sk.seed * 5.1);
     const desired = Math.atan2(tx - pos.x, tz - pos.z) + wobble;
     return clamp(wrapAngle(p.vehicle.telemetry.heading - desired) * gain, -1, 1);
   }
@@ -80,7 +149,7 @@ export class BotDriver implements InputSource {
     i.steer = this.steerTo(p, 70, this.skill.lane, 1.6);
     const h = p.heightAboveGround();
     const vy = p.vehicle.body.linvel().y;
-    if (h > 30) i.throttle = 0.4 + this.skill.level * 0.4;
+    if (h > 30) i.throttle = 0.2 + this.skill.level * 0.4;
     else if (h < 7 && vy < -10) i.brake = 0.6;
   }
 
@@ -90,11 +159,17 @@ export class BotDriver implements InputSource {
     const tel = p.vehicle.telemetry;
     const sk = this.skill;
     let lat = sk.lane;
-    // Line up with the next jump and pop its lip.
+    // Line up with the next jump and pop its lip (sometimes misjudged and skipped).
     const f = c.features.find((x) => (x.type === 'jump' || x.type === 'kicker' || x.type === 'gap') && x.s > s - 2 && x.s < s + 150);
-    if (f && sk.level > 0.6) {
-      lat = f.lateral;
-      i.jumpPressed = Math.abs(f.s - s) < 2.5 && tel.grounded;
+    if (f) {
+      if (this.decidedJumpS !== f.s) {
+        this.decidedJumpS = f.s;
+        this.skipJumpS = this.rng() < BOT_MISTAKES.missLipChance * (1.3 - sk.level) ? f.s : -1;
+      }
+      if (this.skipJumpS !== f.s) {
+        lat = f.lateral;
+        i.jumpPressed = Math.abs(f.s - s) < 2.5 && tel.grounded;
+      }
     }
     // Read the line ahead: the tightest bend within braking distance sets a corner speed.
     const scan = 12 + tel.speed * 1.4;
@@ -103,7 +178,7 @@ export class BotDriver implements InputSource {
       const j = Math.min(c.count - 1, Math.round((s + d) / c.step));
       kMax = Math.max(kMax, Math.abs(c.curvature[j]!));
     }
-    const cornerSpeed = Math.sqrt((14 + sk.level * 6) / Math.max(kMax, 1e-4));
+    const cornerSpeed = Math.sqrt((12 + sk.level * 6) / Math.max(kMax, 1e-4));
     const sharp = kMax > 0.012;
     // Look further ahead at speed so lines are smooth. Through tight bends (switchbacks) hold the
     // centre line at a fixed distance: aiming further cuts across the inside, which is uphill.
@@ -112,8 +187,8 @@ export class BotDriver implements InputSource {
     i.steer = this.steerTo(p, ahead, tight ? 0 : lat, 2.4);
     // Skis and boards tuck on full throttle, which costs steering: stand up for tight bends.
     i.throttle = tight && GLIDERS.has(p.vehicle.id) ? 0 : 1;
-    // Boost on straights, as often as skill (and the race rubber band) says.
-    const share = clamp(0.55 + sk.level * 0.45 + (this.push - 1) * 4, 0, 1);
+    // Boost on some of the straights: how often depends on skill and the race rubber band.
+    const share = clamp(BOT_MISTAKES.boostBase + sk.level * BOT_MISTAKES.boostSkill + (this.push - 1) * 3, 0, 0.9);
     const rhythm = 0.5 + 0.25 * Math.sin(this.t * 0.41 + sk.seed * 7) + 0.25 * Math.sin(this.t * 0.17 + sk.seed * 3);
     i.boost = !sharp && rhythm < share && tel.grounded;
     // Brake down to the corner speed before a tight bend (not on boards and skis: without an

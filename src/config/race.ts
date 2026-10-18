@@ -33,11 +33,12 @@ export const RACE = {
     wingsuit: 110,
     onFoot: 20,
   } as Record<VehicleId, number>,
-  /** Ghost pace stays within this band around the nominal pace. */
-  ghostPaceBand: [0.88, 1.1] as [number, number],
-  /** Rubber band: up to ±push on pace / boost use when a bot is `bandDistance` m ahead of or behind the player. */
-  bandDistance: 450,
-  bandPush: 0.07,
+  /** Ghost pace stays within this band around the nominal pace (before skill and slips). */
+  ghostPaceBand: [0.8, 1.0] as [number, number],
+  /** Rubber band at `bandDistance` m from the player: ease off by up to `bandEase` when ahead, push by up to `bandPush` when behind. */
+  bandDistance: 350,
+  bandEase: 0.14,
+  bandPush: 0.08,
   /** Bots beyond this distance from the camera skip the character pose (m) and beyond the second aren't drawn. */
   detailRange: 260,
   drawRange: 1600,
@@ -64,5 +65,24 @@ export const BOT_VEHICLES: Record<BiomeId, VehicleId[]> = {
   snow: ['snowboard', 'skis', 'snowboard', 'mountainBike', 'skis', 'motorbike', 'snowboard'],
 };
 
-/** Skill spread: bot k gets level BOT_LEVELS[k] (1 = clean lines, lots of boost). */
-export const BOT_LEVELS = [0.98, 0.93, 0.9, 0.86, 0.82, 0.78, 0.74];
+/** Skill spread: bot k gets level BOT_LEVELS[k] (1 would be flawless; nobody is). */
+export const BOT_LEVELS = [0.9, 0.84, 0.78, 0.72, 0.66, 0.6, 0.54];
+
+/** How human the bots ride: mistake rates, missed lips, fumbled airs, boost use. */
+export const BOT_MISTAKES = {
+  /** Slips per second (wide line, lift, nervous brake, wobble): base + (1 - level) * skillRate. */
+  baseRate: 0.03,
+  skillRate: 0.09,
+  /** Chance per jump of misjudging the lip and not popping it (scaled by 1.3 - level). */
+  missLipChance: 0.35,
+  /** Chance per take-off of fumbling the air, which often ends in a crash (scaled by 1.2 - level). */
+  fumbleChance: 0.1,
+  /** Share of straights boosted: base + level * skill (capped at 0.9). */
+  boostBase: 0.15,
+  boostSkill: 0.45,
+  /** Ghosts lose time the same way: slow-downs (factor, seconds) and crashes (seconds stopped). */
+  ghostSlowFactor: 0.45,
+  ghostSlowTime: [1.5, 3.5] as [number, number],
+  ghostCrashRate: 0.006,
+  ghostCrashTime: 6,
+};
