@@ -10,11 +10,14 @@ import { ChaseCamera, type CameraTarget } from '../camera/ChaseCamera';
 import { FlyCam } from '../camera/FlyCam';
 import { Puff } from '../fx/Puff';
 import { SpeedLines } from '../fx/SpeedLines';
+import { Race } from '../gameplay/Race';
 import { Run } from '../gameplay/Run';
+import { RACE } from '../config/race';
 import { loadRiderPack } from '../models/ModelLoader';
 import { loadNatureKit } from '../models/NatureKit';
 import { PlayerController } from '../player/PlayerController';
 import { HUD } from '../ui/HUD';
+import { NameTags, type NameTagItem } from '../ui/NameTags';
 import { keyLabel } from '../ui/SettingsScreen';
 import { Toast } from '../ui/Toast';
 import { VehicleWheel } from '../ui/VehicleWheel';
@@ -31,7 +34,11 @@ export class PlayMode implements GameMode {
   readonly chase: ChaseCamera;
   readonly flyCam: FlyCam;
   readonly run: Run;
+  /** The mass-start race: the player plus bots. */
+  readonly race: Race;
   readonly hud: HUD;
+  private tags: NameTags;
+  private tagItems: NameTagItem[] = [];
   readonly dev = { flyCam: false, orbitCam: false };
   phase: 'menu' | 'run' = 'menu';
   private focus = new THREE.Vector3();
@@ -63,7 +70,10 @@ export class PlayMode implements GameMode {
     const best = game.save.data.progress.bestTimes[world.mapId] ?? null;
     this.run = new Run(world.mapId, world.course.checkpoints, this.spawnS, props.finishS, best);
     this.hud = new HUD(game.ui, world.course, world.course.checkpoints, props.finishS);
+    this.tags = new NameTags(this.hud.el);
     this.player.resetS = () => this.run.checkpoints.respawnS();
+    this.race = new Race(game, world, this.player, this.spawnS, props.finishS, world.course.checkpoints);
+    this.run.standings = (time) => this.race.results(time);
     this.target = {
       position: new THREE.Vector3(),
       velocity: new THREE.Vector3(),
@@ -105,9 +115,10 @@ export class PlayMode implements GameMode {
     this.closeWheel(null);
     this.phase = 'menu';
     this.hud.setVisible(false);
-    this.player.respawnAt(this.spawnS, 0, 'menu');
+    this.player.respawnAt(this.spawnS, 0, 'menu', this.race.playerLat);
     this.player.frozen = true;
     this.player.autoBrake = false;
+    this.race.reset();
     this.run.state = 'idle';
     const t = this.flyCam.tuning;
     t.autopilotSpeed = RUN.menuFlySpeed;
@@ -123,8 +134,9 @@ export class PlayMode implements GameMode {
     this.phase = 'run';
     this.flyCam.tuning.autopilot = false;
     this.player.autoBrake = false;
-    this.player.respawnAt(this.spawnS, 0, 'start');
+    this.player.respawnAt(this.spawnS, 0, 'start', this.race.playerLat);
     this.player.frozen = true;
+    this.race.reset();
     this.run.begin(false);
     this.hud.setVisible(true);
     this.chase.snap();
@@ -143,11 +155,15 @@ export class PlayMode implements GameMode {
   }
 
   fixedUpdate(dt: number): void {
-    if (this.phase === 'run') this.player.fixedUpdate(dt);
+    if (this.phase !== 'run') return;
+    this.player.fixedUpdate(dt);
+    this.race.fixedUpdate(dt);
   }
 
   afterStep(dt: number): void {
-    if (this.phase === 'run') this.player.afterStep(dt);
+    if (this.phase !== 'run') return;
+    this.player.afterStep(dt);
+    this.race.afterStep(dt);
   }
 
   update(realDt: number, simDt: number, alpha: number): void {
@@ -185,6 +201,9 @@ export class PlayMode implements GameMode {
     this.player.update(simDt, alpha);
     this.puff.update(simDt);
     this.updateCamera(realDt);
+    this.race.update(realDt, simDt, alpha, run, this.game.renderer.camera.position);
+    const standings = this.race.standings();
+    this.updateTags(standings);
 
     this.player.focusLocal(this.focus);
     this.world.origin.toGlobal(this.focus, this.global);
@@ -198,8 +217,28 @@ export class PlayMode implements GameMode {
       boost: -1,
       flight: tel.flightMeter,
       checkpointsReached: run.checkpoints.last + 1,
+      standings,
+      pace: this.race.local.pace,
     });
     this.world.update(realDt, this.focus, this.player.progress.result.s);
+  }
+
+  /** Name tags over the bots near the camera. */
+  private updateTags(standings: ReturnType<Race['standings']>): void {
+    const cam = this.game.renderer.camera;
+    const bots = this.race.bots;
+    while (this.tagItems.length < bots.length) this.tagItems.push({ id: '', name: '', position: 0, color: '', at: new THREE.Vector3(), show: false });
+    bots.forEach((e, k) => {
+      const item = this.tagItems[k]!;
+      item.id = e.id;
+      item.name = e.name;
+      item.color = e.color;
+      item.position = standings.find((r) => r.id === e.id)?.position ?? 0;
+      e.rider.vehicle.renderPosition(item.at);
+      item.show = e.rider.vehicle.model.visible && item.at.distanceTo(cam.position) < RACE.nameTagRange;
+      item.at.y += 2.1;
+    });
+    this.tags.update(cam, this.tagItems);
   }
 
   /** Hold the wheel key: slow-mo + radial picker; release to swap. */
@@ -329,6 +368,8 @@ export class PlayMode implements GameMode {
     for (const off of this.offs) off();
     this.game.loop.timeScale = 1;
     this.run.dispose();
+    this.race.dispose();
+    this.tags.dispose();
     this.hud.dispose();
     this.toast.dispose();
     this.speedLines.dispose();

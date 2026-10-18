@@ -4,7 +4,9 @@ import { MAPS } from '../config/maps';
 import { SURFACE_PHYSICS } from '../config/surfaces';
 import { WORLD } from '../config/world';
 import { DEFAULT_GROUND_VEHICLE, RIDING, VEHICLES, type VehicleId } from '../config/vehicles';
-import { events } from '../core/Events';
+import type { RiderLook } from '../config/riders';
+import { events, type GameEvents } from '../core/Events';
+import type { ModelOptions } from '../models/ModelLoader';
 import type { Game } from '../core/Game';
 import { ProgressTracker } from '../world/CourseQuery';
 import type { World } from '../world/World';
@@ -13,6 +15,7 @@ import { createVehicle } from '../vehicles/factory';
 import { swapVehicle } from '../vehicles/VehicleSwitcher';
 import { defaultMods, emptyInput, type TransferState, type Vehicle, type VehicleContext, type VehicleSnapshot } from '../vehicles/Vehicle';
 import { Character, makePose } from './Character';
+import { LocalInput, type InputSource } from './InputSource';
 import { Ragdoll } from './Ragdoll';
 import { RiderDynamics, type MotionFrame } from './RiderDynamics';
 import { WingsuitMembrane } from './WingsuitMembrane';
@@ -26,14 +29,42 @@ export interface PlayerSnapshot extends VehicleSnapshot {
   progress: number;
 }
 
+/** Rider events. The local rider's go on the global bus (HUD, camera, run); every rider's go to `onEvent`. */
+export type RiderEvent = 'player:takeoff' | 'player:land' | 'player:crash' | 'player:respawn' | 'player:switch';
+
+export interface RiderOptions {
+  /** Where the controls come from (default: this machine's keyboard / gamepad). */
+  source?: InputSource;
+  /** The rider at this machine: owns the global events and the camera. Default true. */
+  local?: boolean;
+  look?: RiderLook;
+  /** Paint for every vehicle this rider spawns (vehicle defaults when unset). */
+  paint?: ModelOptions;
+}
+
 const _v = new THREE.Vector3();
 const _g = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 
-/** Glues input -> active vehicle -> character pose, and owns crash / respawn flow. */
+/**
+ * One rider: input source -> active vehicle -> character pose, plus crash / respawn flow. The
+ * player at this machine and the bots are the same class with different input sources (a
+ * remote player would be another source). Non-local riders can drop into a light "ghost" mode
+ * where they coast along the course line, for stretches with no terrain colliders around them.
+ */
 export class PlayerController {
   vehicle: Vehicle;
-  readonly character = new Character();
+  readonly character: Character;
+  readonly local: boolean;
+  readonly source: InputSource;
+  readonly paint: ModelOptions | undefined;
+  onEvent: (<K extends RiderEvent>(type: K, payload: GameEvents[K]) => void) | null = null;
+  /** Ghost mode (non-local riders far from the local one): no physics, coast along the line. */
+  ghost = false;
+  /** Coasting speed along the course while a ghost (m/s), set by the race. */
+  ghostSpeed = 0;
+  private ghostS = 0;
+  private ghostLat = 0;
   /** Body motion layered on top of the vehicle's pose. */
   readonly motion = new RiderDynamics();
   readonly membrane: WingsuitMembrane;
@@ -53,13 +84,14 @@ export class PlayerController {
   inputOverride: ((input: typeof this.input) => void) | null = null;
   /** Lets the camera hide the head in helmet view. */
   headVisible = true;
+  /** Off for far riders: only the vehicle is placed, the character keeps its last pose. */
+  detail = true;
   private pose = makePose();
   private ragdoll: Ragdoll | null = null;
   private crashTimer = 0;
   private stuckTimer = 0;
   private offShift: () => void;
   private simTime = 0;
-  private steerSmooth = 0;
   /** After a respawn: hold the rider in place until the ground's collider has streamed in. */
   private spawnHold: TransferState | null = null;
   private spawnWait = 0;
@@ -71,11 +103,16 @@ export class PlayerController {
     private readonly world: World,
     vehicleId: VehicleId,
     spawnS: number,
+    opts: RiderOptions = {},
   ) {
+    this.local = opts.local ?? true;
+    this.source = opts.source ?? new LocalInput(game.input);
+    this.paint = opts.paint;
+    this.character = new Character(opts.look);
     this.ctx = { physics: game.physics, world, mods: defaultMods() };
     this.progress = new ProgressTracker(world.query);
     this.progress.reset(spawnS);
-    this.vehicle = createVehicle(vehicleId, game.physics, this.spawnState(spawnS, 0));
+    this.vehicle = createVehicle(vehicleId, game.physics, this.spawnState(spawnS, 0), this.paint);
     this.attachVehicle(this.vehicle);
     this.membrane = new WingsuitMembrane(this.character.binding);
     this.offShift = events.on('origin:shift', ({ dx, dy, dz }) => {
@@ -85,14 +122,18 @@ export class PlayerController {
     });
   }
 
-  /** Spawn transform on the course line at distance s (local coordinates). */
-  spawnState(s: number, speed: number): TransferState {
-    const g = this.world.globalAt(s, _g);
-    const heading = this.world.headingAt(s);
-    const pos = this.world.origin.toLocal(g, new THREE.Vector3());
-    pos.y += this.vehicle ? this.vehicle.stats.rideHeight + 0.4 : 1.1;
+  /** Spawn transform `lat` m right of the course line at distance s (local coordinates). */
+  spawnState(s: number, speed: number, lat = 0, lift = 0.4): TransferState {
+    const heading = this.world.courseAt(s, lat, _g);
+    const pos = this.world.origin.toLocal(_g, new THREE.Vector3());
+    pos.y += this.vehicle ? this.vehicle.stats.rideHeight + lift : 1.1;
     const vel = new THREE.Vector3(Math.sin(heading), 0, Math.cos(heading)).multiplyScalar(speed);
     return { position: pos, velocity: vel, heading };
+  }
+
+  private emit<K extends RiderEvent>(type: K, payload: GameEvents[K]): void {
+    if (this.local) events.emit(type, payload);
+    this.onEvent?.(type, payload);
   }
 
   private attachVehicle(v: Vehicle): void {
@@ -101,8 +142,8 @@ export class PlayerController {
     this.character.root.position.set(0, 0, 0);
     this.character.root.quaternion.identity();
     v.hooks.onCrash = (reason) => this.onCrash(reason);
-    v.hooks.onLand = (info) => events.emit('player:land', info);
-    v.hooks.onTakeoff = () => events.emit('player:takeoff', {});
+    v.hooks.onLand = (info) => this.emit('player:land', info);
+    v.hooks.onTakeoff = () => this.emit('player:takeoff', {});
   }
 
   /** Ground vehicles a wingsuit landing can hand over to. */
@@ -119,7 +160,7 @@ export class PlayerController {
     // Detach the rider first: disposing the old vehicle disposes everything under its model.
     this.character.root.removeFromParent();
     try {
-      this.vehicle = swapVehicle(this.vehicle, id, this.game.physics, this.world);
+      this.vehicle = swapVehicle(this.vehicle, id, this.game.physics, this.world, this.paint);
     } finally {
       this.attachVehicle(this.vehicle);
     }
@@ -128,7 +169,7 @@ export class PlayerController {
     this.popT = 0;
     if (opts.hop ?? true) this.motion.hop();
     const p = this.vehicle.transfer().position;
-    events.emit('player:switch', { from, to: id, position: { x: p.x, y: p.y, z: p.z } });
+    this.emit('player:switch', { from, to: id, position: { x: p.x, y: p.y, z: p.z } });
     return true;
   }
 
@@ -141,7 +182,7 @@ export class PlayerController {
   }
 
   /** The ground vehicle a wingsuit lands on (respects snow-only rules). */
-  private landingVehicle(): VehicleId {
+  landingVehicle(): VehicleId {
     const id = this.lastGround;
     return VEHICLES[id].snowOnly && MAPS[this.world.mapId].biome !== 'snow' ? DEFAULT_GROUND_VEHICLE : id;
   }
@@ -160,27 +201,80 @@ export class PlayerController {
     this.ragdoll = new Ragdoll(this.game.physics, this.character, this.game.renderer.scene, v);
     // Park the vehicle where it fell.
     this.vehicle.body.setLinvel({ x: v.x * 0.2, y: 0, z: v.z * 0.2 }, true);
-    events.emit('player:crash', { reason, penalty: RIDING.crashPenalty });
+    this.emit('player:crash', { reason, penalty: RIDING.crashPenalty });
     return false;
   }
 
-  /** Put the rider back on the course line at distance s. */
-  respawnAt(s: number, speed = RIDING.respawnSpeed, reason = 'respawn'): void {
+  /** Put the rider back on the course line at distance s (`lat` m to its right). */
+  respawnAt(s: number, speed = RIDING.respawnSpeed, reason = 'respawn', lat = 0): void {
     this.endRagdoll();
+    this.ghost = false;
     const c = this.world.course;
     const sClamped = Math.max(5, Math.min(c.length - 5, s));
     this.progress.reset(sClamped);
+    // The tracker only refines on the next update: report the new spot straight away.
+    const r = this.progress.result;
+    r.idx = this.progress.idx;
+    r.s = sClamped;
+    r.lat = lat;
+    r.d = Math.abs(lat);
     this.state = 'riding';
     if (this.onPlateau(sClamped) && this.vehicle.id !== 'onFoot') this.switchTo('onFoot', { silent: true });
     // A wingsuit can't stand on the ground: respawn on the ground vehicle instead.
     else if (!this.onPlateau(sClamped) && (this.vehicle.id === 'wingsuit' || this.vehicle.id === 'onFoot')) this.switchTo(this.landingVehicle(), { silent: true });
-    const spawn = this.spawnState(sClamped, speed);
+    const spawn = this.spawnState(sClamped, speed, lat);
     this.vehicle.place(spawn);
     this.spawnHold = spawn;
     this.spawnWait = RIDING.spawnGroundWait;
     this.motion.reset();
     this.stuckTimer = 0;
-    events.emit('player:respawn', { reason });
+    this.emit('player:respawn', { reason });
+  }
+
+  /** Become a ghost at the current progress, coasting at `speed` (never the local rider). */
+  enterGhost(speed: number): void {
+    if (this.local || this.ghost) return;
+    const r = this.progress.result;
+    this.endRagdoll();
+    this.state = 'riding';
+    this.spawnHold = null;
+    // A ghost rides its ground vehicle: runners past the plateau and wingsuits land straight away.
+    if (this.vehicle.id === 'wingsuit' || (this.vehicle.id === 'onFoot' && !this.onPlateau(r.s))) this.switchTo(this.landingVehicle(), { silent: true });
+    this.ghost = true;
+    this.ghostS = r.s;
+    this.ghostLat = Math.max(-4, Math.min(4, r.lat));
+    this.ghostSpeed = speed;
+  }
+
+  /** Back to full physics where the ghost is now, already at speed. */
+  exitGhost(): void {
+    if (!this.ghost) return;
+    this.ghost = false;
+    this.vehicle.place(this.spawnState(this.ghostS, this.ghostSpeed, this.ghostLat, 0.12));
+    this.motion.reset();
+    this.stuckTimer = 0;
+  }
+
+  /** Where a ghost is now (global, on the ground). */
+  ghostGlobal(out: THREE.Vector3): THREE.Vector3 {
+    this.world.courseAt(this.ghostS, this.ghostLat, out);
+    return out;
+  }
+
+  private ghostStep(dt: number): void {
+    const c = this.world.course;
+    this.ghostS = Math.min(c.length - 5, this.ghostS + this.ghostSpeed * dt);
+    this.vehicle.place(this.spawnState(this.ghostS, 0, this.ghostLat, 0));
+    const r = this.progress.result;
+    this.progress.reset(this.ghostS);
+    r.idx = this.progress.idx;
+    r.s = this.ghostS;
+    r.lat = this.ghostLat;
+    r.d = Math.abs(this.ghostLat);
+    const tel = this.vehicle.telemetry;
+    tel.speed = tel.forwardSpeed = this.ghostSpeed;
+    tel.grounded = true;
+    tel.airTime = 0;
   }
 
   private endRagdoll(): void {
@@ -195,26 +289,16 @@ export class PlayerController {
   }
 
   private readInput(): void {
-    const inp = this.game.input;
     const i = this.input;
-    const live = !this.frozen;
-    i.throttle = live ? inp.value('accelerate') : 0;
-    i.brake = live ? inp.value('brake') : 1;
-    // Keys get a very short ramp so they don't twitch; analog sticks go straight through.
-    const raw = live ? inp.axis('steerLeft', 'steerRight') : 0;
-    if (inp.lastDevice === 'gamepad') this.steerSmooth = raw;
-    else {
-      const rising = Math.abs(raw) > Math.abs(this.steerSmooth) && Math.sign(raw) === Math.sign(this.steerSmooth || raw);
-      const rate = (rising ? RIDING.steerRise : RIDING.steerFall) / 60;
-      this.steerSmooth += Math.max(-rate, Math.min(rate, raw - this.steerSmooth));
+    this.source.read(i);
+    // Race rules on top of whatever the source wants.
+    if (this.frozen) {
+      i.throttle = 0;
+      i.brake = 1;
+      i.steer = 0;
+      i.jumpPressed = false;
+      i.boost = false;
     }
-    i.steer = this.steerSmooth;
-    i.pitch = inp.axis('pitchBack', 'pitchForward');
-    i.spin = inp.axis('spinLeft', 'spinRight');
-    i.jumpPressed = live && inp.stepPressed('jump');
-    i.jumpHeld = inp.isDown('jump');
-    i.boost = live && inp.isDown('boost');
-    i.trick = inp.isDown('trick');
     if (this.autoBrake) {
       i.throttle = 0;
       i.brake = 0.5;
@@ -231,6 +315,10 @@ export class PlayerController {
 
   fixedUpdate(dt: number): void {
     this.simTime += dt;
+    if (this.ghost) {
+      this.ghostStep(dt);
+      return;
+    }
     // Long respawns can land before the terrain there has colliders: wait for the ground.
     if (this.spawnHold && this.state === 'riding') {
       this.spawnWait -= dt;
@@ -250,6 +338,7 @@ export class PlayerController {
   }
 
   afterStep(dt: number): void {
+    if (this.ghost) return;
     if (this.state === 'riding') {
       const v = this.vehicle;
       v.afterStep(dt, this.ctx);
@@ -295,6 +384,7 @@ export class PlayerController {
 
   update(dt: number, alpha: number): void {
     this.vehicle.render(dt, alpha);
+    if (!this.detail) return;
     if (this.popT < 1) {
       // Elastic pop: overshoot then settle.
       this.popT = Math.min(1, this.popT + dt / SWITCH.popDuration);

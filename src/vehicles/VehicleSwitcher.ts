@@ -1,6 +1,7 @@
 import { SWITCH } from '../config/gameplay';
 import { MAPS, type BiomeId } from '../config/maps';
 import { VEHICLES, type VehicleId } from '../config/vehicles';
+import type { ModelOptions } from '../models/ModelLoader';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import type { World } from '../world/World';
 import { createVehicle } from './factory';
@@ -15,7 +16,7 @@ export function mapBiome(world: World): BiomeId {
  * clamped to the new top speed, and put back on the ground when the switch happened close to it.
  * The caller detaches the rider first; the old vehicle is disposed here.
  */
-export function swapVehicle(old: Vehicle, id: VehicleId, physics: PhysicsWorld, world: World): Vehicle {
+export function swapVehicle(old: Vehicle, id: VehicleId, physics: PhysicsWorld, world: World, paint?: ModelOptions): Vehicle {
   const state = old.transfer();
   const next = VEHICLES[id];
   const max = next.topSpeed * SWITCH.velocityClamp;
@@ -31,7 +32,7 @@ export function swapVehicle(old: Vehicle, id: VehicleId, physics: PhysicsWorld, 
     if (state.velocity.y < 0) state.velocity.y *= 0.5;
   }
   // Build first so a failure leaves the old vehicle intact (vehicles never collide with each other).
-  const v = createVehicle(id, physics, state);
+  const v = createVehicle(id, physics, state, paint);
   old.dispose(physics);
   v.onSwitchedIn(airborne);
   return v;

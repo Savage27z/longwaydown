@@ -420,3 +420,34 @@ Goal: the mountain should look like a lively race venue, not primitives on an em
   - Placed at the start (both sides), every checkpoint, every other jump and the finish.
 
 **Tests:** 53 (unchanged). Typecheck and build are clean, and the dev viewer is not in `dist`.
+
+## Step E: racing 7 bots (built for online later)
+- **One rider class, pluggable inputs** (`player/InputSource.ts`):
+  - The player and the bots are the same `PlayerController` with a different `InputSource`: `LocalInput` (keyboard and gamepad) or `BotDriver`.
+  - A network player would be a third source.
+  - Only the local rider puts events on the global bus (HUD, camera, run); every rider reports to its own `onEvent`.
+  - Riders take their own look and vehicle paint.
+- **Bots** (`gameplay/BotDriver.ts`):
+  - Bots sprint off the summit, fly the wingsuit down the line (dive while high, flare before touchdown), then ride their own lane.
+  - They boost on straights as often as skill allows and line up for jumps.
+  - Before tight bends they read curvature and brake to a corner speed. Boards and skis don't brake (no engine: lost momentum is gone) and stand up out of the tuck.
+  - Seven bots, each with its own name, outfit, paint, ground vehicle (per biome) and skill level (0.74–0.98).
+- **Ghost mode:**
+  - Terrain colliders only exist near the player. A bot without colliders under it, or 25 m ahead, coasts along the line at its learned ground pace and keeps its lateral position.
+  - It becomes physical again once colliders cover it and 62 m ahead, after at least 3 s.
+  - Pace is learned only on ground vehicles, not during the run-up or glide, and stays within 0.88–1.1 of a per-vehicle baseline measured from races.
+  - Far bots skip the character pose (over 260 m) and aren't drawn past 1.6 km.
+- **Race** (`gameplay/Race.ts`):
+  - 8-rider mass start in two rows of four, with the player in the front row.
+  - The race clock runs until every rider is in. Bots pay the same crash penalty.
+  - Rubber band: up to ±7% on boost use and ghost pace at 450 m from the player.
+  - Standings put finishers first by time, then everyone by distance. Results give riders still on course an estimated time, marked ~.
+- **UI:**
+  - The HUD shows position ("3rd/8") and the field with time gaps.
+  - Rider dots on the elevation strip, and name tags over nearby bots.
+  - A standings table on the results screen.
+- **Fix:** respawning now reports the new course position straight away. It used to be stale until the next update.
+- **Headless races** (test player auto-riding with full boost):
+  - Green Ridge (26 km): all 8 finished between 10:44 and about 14:00.
+  - Snow Peak: the test player was 2nd on a snowboard, with motor vehicles fastest. The snow baseline pace was raised after this race.
+  - In the Icy Switchbacks, snowboard bots improved from 77–80 km/h with 16–17 s stalled per 50 s, to 95–99 km/h with no stalls.

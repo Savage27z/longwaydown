@@ -1,6 +1,7 @@
 import { RUN } from '../config/gameplay';
 import { VEHICLES, type VehicleId } from '../config/vehicles';
 import { events } from '../core/Events';
+import type { Standing } from '../gameplay/Race';
 import type { CourseData } from '../world/CourseGenerator';
 import { formatTime } from '../utils/math';
 import { VEHICLE_ICONS } from './icons';
@@ -17,7 +18,12 @@ export interface HudView {
   boost: number;
   flight: number;
   checkpointsReached: number;
+  /** Race standings (null in a solo run) and the local rider's pace for time gaps (m/s). */
+  standings: Standing[] | null;
+  pace: number;
 }
+
+const ORDINAL = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`;
 
 /** HTML/CSS overlay HUD. Listens to run events for countdown, checkpoints and penalties. */
 export class HUD {
@@ -25,6 +31,9 @@ export class HUD {
   private timer: HTMLDivElement;
   private sub: HTMLDivElement;
   private best: HTMLDivElement;
+  private pos: HTMLDivElement;
+  private board: HTMLDivElement;
+  private boardHtml = '';
   private strip: HTMLCanvasElement;
   private stripCtx: CanvasRenderingContext2D;
   private stripBase: HTMLCanvasElement | null = null;
@@ -56,7 +65,7 @@ export class HUD {
   ) {
     this.el.className = 'hud hidden';
     this.el.innerHTML = `
-      <div class="hud-top-left"><div class="hud-timer">0:00.000</div><div class="hud-sub"></div><div class="hud-best"></div></div>
+      <div class="hud-top-left"><div class="hud-timer">0:00.000</div><div class="hud-sub"></div><div class="hud-best"></div><div class="hud-pos"></div><div class="hud-board"></div></div>
       <div class="hud-top-center"><canvas class="hud-strip" width="920" height="112"></canvas><div class="hud-togo"></div></div>
       <div class="hud-top-right"><div class="hud-alt"></div><div class="hud-vehicle"></div></div>
       <div class="hud-bottom-right">
@@ -72,6 +81,8 @@ export class HUD {
     this.timer = q('.hud-timer');
     this.sub = q('.hud-sub');
     this.best = q('.hud-best');
+    this.pos = q('.hud-pos');
+    this.board = q('.hud-board');
     this.strip = q('.hud-strip');
     this.stripCtx = this.strip.getContext('2d')!;
     this.togo = q('.hud-togo');
@@ -140,7 +151,7 @@ export class HUD {
 
   private stripScale: { xOf: (s: number) => number; yOf: (y: number) => number } | null = null;
 
-  private drawStrip(progressS: number, reached: number): void {
+  private drawStrip(progressS: number, reached: number, standings: Standing[] | null): void {
     const g = this.stripCtx;
     const W = this.strip.width;
     const H = this.strip.height;
@@ -173,6 +184,19 @@ export class HUD {
     const fx = xOf(this.finishS);
     g.fillStyle = '#ffffff';
     g.fillRect(fx - 2, 2, 4, H - 4);
+    // Other riders: small dots in their colours.
+    for (const r of standings ?? []) {
+      if (r.kind === 'local') continue;
+      const s = Math.min(r.s, this.course.length);
+      const j = Math.min(this.course.count - 1, Math.max(0, Math.round(s / this.course.step)));
+      g.beginPath();
+      g.arc(xOf(s), yOf(this.course.y[j]!), 5, 0, Math.PI * 2);
+      g.fillStyle = r.color;
+      g.fill();
+      g.lineWidth = 1.5;
+      g.strokeStyle = 'rgba(13,27,42,0.8)';
+      g.stroke();
+    }
     // Rider dot.
     const i = Math.min(this.course.count - 1, Math.max(0, Math.round(progressS / this.course.step)));
     const py = yOf(this.course.y[i]!);
@@ -207,7 +231,8 @@ export class HUD {
       this.flightBar.style.width = `${Math.round(v.flight * 100)}%`;
       this.flightLabel.textContent = v.vehicle === 'roadster' ? 'THRUSTERS' : 'FLIGHT';
     }
-    this.drawStrip(v.progressS, v.checkpointsReached);
+    this.drawStrip(v.progressS, v.checkpointsReached, v.standings);
+    this.drawBoard(v.standings, v.pace);
 
     this.subTimer -= dt;
     if (this.subTimer <= 0) this.sub.textContent = '';
@@ -215,6 +240,29 @@ export class HUD {
     if (this.bannerTimer <= 0) this.banner.classList.remove('show');
     this.countTimer -= dt;
     if (this.countTimer <= 0) this.countdown.classList.remove('show');
+  }
+
+  /** Big position plus the field with time gaps to the local rider. */
+  private drawBoard(rows: Standing[] | null, pace: number): void {
+    if (!rows) {
+      this.pos.textContent = '';
+      if (this.boardHtml) this.board.innerHTML = this.boardHtml = '';
+      return;
+    }
+    const me = rows.find((r) => r.kind === 'local');
+    if (!me) return;
+    this.pos.innerHTML = `${ORDINAL(me.position)}<small>/${rows.length}</small>`;
+    const gap = (r: Standing): string => {
+      if (r === me) return '';
+      if (r.finished && me.finished) return `${r.time! < me.time! ? '−' : '+'}${Math.abs(r.time! - me.time!).toFixed(1)}`;
+      if (r.finished) return formatTime(r.time!, false);
+      const sec = (r.s - me.s) / Math.max(8, pace);
+      return `${sec >= 0 ? '−' : '+'}${Math.abs(sec).toFixed(1)}`;
+    };
+    const html = rows
+      .map((r) => `<div class="row${r === me ? ' me' : ''}"><b>${r.position}</b><i style="background:${r.color}"></i><span>${r.name}</span><em>${gap(r)}</em></div>`)
+      .join('');
+    if (html !== this.boardHtml) this.board.innerHTML = this.boardHtml = html;
   }
 
   private showSub(text: string, cls: 'good' | 'bad'): void {

@@ -697,3 +697,129 @@ input[type='range'] {
     transform: scale(0.66);
   }
 }
+
+/* ---------- Race: position, field, name tags, standings ---------- */
+.hud-pos {
+  margin-top: 10px;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 34px;
+  line-height: 1;
+}
+.hud-pos small {
+  font-size: 16px;
+  opacity: 0.75;
+  margin-left: 2px;
+}
+.hud-board {
+  margin-top: 8px;
+  width: 200px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.hud-board .row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 2px 4px;
+  margin-bottom: 2px;
+  background: var(--glass);
+  border-radius: 4px;
+}
+.hud-board .row.me {
+  background: rgba(255, 90, 31, 0.78);
+}
+.hud-board .row b {
+  width: 16px;
+  text-align: right;
+  font-style: italic;
+}
+.hud-board .row i {
+  width: 4px;
+  height: 14px;
+  border-radius: 2px;
+}
+.hud-board .row span {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hud-board .row em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+.hud-tags {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.hud-tags .tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 2px 8px 2px 2px;
+  border-radius: 10px;
+  background: var(--glass);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  will-change: transform;
+}
+.hud-tags .tag b {
+  display: inline-block;
+  min-width: 18px;
+  margin-right: 5px;
+  padding: 0 4px;
+  border-radius: 8px;
+  color: var(--ink);
+  text-align: center;
+  text-shadow: none;
+}
+.standings {
+  margin: 10px auto 14px;
+  max-width: 420px;
+  text-align: left;
+}
+.standings .st-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+.standings .st-row:nth-child(odd) {
+  background: rgba(244, 248, 255, 0.06);
+}
+.standings .st-row.me {
+  background: rgba(255, 90, 31, 0.35);
+}
+.standings .st-row b {
+  width: 18px;
+  font-style: italic;
+}
+.standings .st-row i {
+  width: 5px;
+  height: 16px;
+  border-radius: 2px;
+}
+.standings .st-row span {
+  flex: 1;
+}
+.standings .st-row .veh {
+  flex: 0 0 22px;
+  height: 20px;
+}
+.standings .st-row .veh svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+}
+.standings .st-row em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}

@@ -81,6 +81,25 @@ export class World {
     return out.set(x, this.sampler.heightAt(x, z), z);
   }
 
+  /**
+   * Global ground point `lat` m to the right of the course line at distance s, interpolated
+   * between course samples (smooth for anything placed every step). Returns the heading there.
+   */
+  courseAt(s: number, lat: number, out: THREE.Vector3): number {
+    const c = this.course;
+    const f = Math.min(c.count - 1.001, Math.max(0, s / c.step));
+    const i = Math.floor(f);
+    const w = f - i;
+    const tx = c.tx[i]! + (c.tx[i + 1]! - c.tx[i]!) * w;
+    const tz = c.tz[i]! + (c.tz[i + 1]! - c.tz[i]!) * w;
+    const tl = Math.hypot(tx, tz) || 1;
+    // Right vector = (-tz, tx), as in CourseQuery.
+    const x = c.x[i]! + (c.x[i + 1]! - c.x[i]!) * w - (tz / tl) * lat;
+    const z = c.z[i]! + (c.z[i + 1]! - c.z[i]!) * w + (tx / tl) * lat;
+    out.set(x, this.sampler.heightAt(x, z), z);
+    return Math.atan2(tx, tz);
+  }
+
   headingAt(s: number): number {
     const c = this.course;
     const i = Math.min(c.count - 1, Math.max(0, Math.round(s / c.step)));

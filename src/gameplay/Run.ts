@@ -3,6 +3,7 @@ import type { MapId } from '../config/maps';
 import { events } from '../core/Events';
 import type { BestTime } from '../core/Save';
 import { Checkpoints } from './Checkpoints';
+import type { Standing } from './Race';
 
 export type RunState = 'idle' | 'intro' | 'countdown' | 'running' | 'finished';
 
@@ -21,6 +22,8 @@ export interface RunResults {
   splits: number[];
   previousBest: number | null;
   newRecord: boolean;
+  /** Race standings at the finish (null for a solo run). */
+  standings: Standing[] | null;
 }
 
 export interface RunFrame {
@@ -43,6 +46,8 @@ export class Run {
   distance = 0;
   /** Seconds the timer is frozen for (Time Freeze buff). */
   freeze = 0;
+  /** Supplies race standings for the results (set by the play mode when racing). */
+  standings: ((time: number) => Standing[]) | null = null;
   readonly checkpoints: Checkpoints;
   private stateTime = 0;
   private countdownN = 0;
@@ -165,6 +170,7 @@ export class Run {
       splits: [...this.checkpoints.splits],
       previousBest: prev,
       newRecord: prev === null || this.total < prev,
+      standings: this.standings?.(this.total) ?? null,
     };
   }
 

@@ -4,6 +4,7 @@ import type { Input } from '../core/Input';
 import type { Save } from '../core/Save';
 import type { RunResults } from '../gameplay/Run';
 import { formatTime } from '../utils/math';
+import { VEHICLE_ICONS } from './icons';
 import { mapSelectScreen } from './MapSelect';
 import { keyLabel, settingsScreen, type SettingsHooks } from './SettingsScreen';
 
@@ -130,6 +131,7 @@ export class Menus {
       <div class="hud-sub">${
         delta === null ? 'First finish on this mountain!' : `<span class="${delta <= 0 ? 'good' : 'bad'}">${delta <= 0 ? '−' : '+'}${formatTime(Math.abs(delta))} vs best ${formatTime(prev!)}</span>`
       }</div>
+      ${standingsTable(r)}
       <div class="results-grid">
         ${stat('Distance', `${(r.distance / 1000).toFixed(2)} km`)}
         ${stat('Top speed', `${Math.round(r.topSpeed * 3.6)} km/h`)}
@@ -190,4 +192,18 @@ export class Menus {
   dispose(): void {
     this.root.remove();
   }
+}
+
+/** Final race standings (estimated times are marked ~ for riders still on the course). */
+function standingsTable(r: RunResults): string {
+  if (!r.standings) return '';
+  const me = r.standings.find((x) => x.kind === 'local');
+  const rows = r.standings
+    .map(
+      (x) =>
+        `<div class="st-row${x.kind === 'local' ? ' me' : ''}"><b>${x.position}</b><i style="background:${x.color}"></i><span>${x.name}</span><span class="veh">${VEHICLE_ICONS[x.vehicle] ?? ''}</span><em>${x.estimated ? '~' : ''}${formatTime(x.time ?? 0)}</em></div>`,
+    )
+    .join('');
+  const place = me ? `<div class="menu-tag">You finished ${me.position}${['st', 'nd', 'rd'][me.position - 1] ?? 'th'} of ${r.standings.length}</div>` : '';
+  return `${place}<div class="standings">${rows}</div>`;
 }
