@@ -34,6 +34,12 @@ export function padLabel(token: string): string {
   return PAD_BUTTONS[token] ?? PAD_AXES[token] ?? token;
 }
 
+/** The binding for an action on the device last used (e.g. "Q" or "LB"). */
+export function actionLabel(input: Input, a: Action): string {
+  if (input.lastDevice === 'gamepad') return input.pad[a].map(padLabel).join(' / ') || '—';
+  return input.keys[a].map(keyLabel).join(' / ') || '—';
+}
+
 /** Graphics / audio / camera / controls settings. Changes apply live and are saved. */
 export function settingsScreen(save: Save, input: Input, hooks: SettingsHooks, onBack: () => void): HTMLElement {
   const s = save.data.settings;

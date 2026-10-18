@@ -196,6 +196,9 @@ export function customizeScreen(save: Save, progression: Progression, onChange: 
   };
 
   const render = () => {
+    // Rebuilding drops focus: put it back on the same control (gamepad / keyboard use).
+    const controls = () => [...body.querySelectorAll<HTMLElement>('button, input')];
+    const focused = controls().indexOf(document.activeElement as HTMLElement);
     body.innerHTML = '';
     el.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('primary', (b as HTMLElement).dataset.tab === tab));
     if (tab === 'rider') {
@@ -245,6 +248,7 @@ export function customizeScreen(save: Save, progression: Progression, onChange: 
       swatches('Primary', p?.primary || undefined, setPaint('primary'));
       swatches('Secondary', p?.secondary || undefined, setPaint('secondary'));
     }
+    if (focused >= 0) controls()[focused]?.focus({ preventScroll: true });
   };
 
   const randomize = () => {

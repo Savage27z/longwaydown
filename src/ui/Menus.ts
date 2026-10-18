@@ -5,10 +5,11 @@ import type { Save } from '../core/Save';
 import type { Progression } from '../gameplay/Progression';
 import type { RunResults } from '../gameplay/Run';
 import { customizeScreen } from './CustomizeScreen';
+import { MenuNav } from './MenuNav';
 import { formatTime } from '../utils/math';
 import { VEHICLE_ICONS } from './icons';
 import { mapSelectScreen } from './MapSelect';
-import { keyLabel, settingsScreen, type SettingsHooks } from './SettingsScreen';
+import { keyLabel, padLabel, settingsScreen, type SettingsHooks } from './SettingsScreen';
 
 export interface MenuActions extends SettingsHooks {
   playMap(id: MapId): void;
@@ -37,6 +38,9 @@ export class Menus {
   private returnTo: ScreenName = 'main';
   /** Tear-down for the current screen (the customize preview owns a renderer). */
   private cleanup: (() => void) | null = null;
+  /** Gamepad navigation; `back` is what B does (set by the game). */
+  readonly nav: MenuNav;
+  back: () => void = () => undefined;
 
   constructor(
     parent: HTMLElement,
@@ -46,6 +50,7 @@ export class Menus {
     private readonly actions: MenuActions,
   ) {
     this.root.className = 'menu-root hidden';
+    this.nav = new MenuNav(this.root, () => this.back());
     parent.appendChild(this.root);
   }
 
@@ -102,7 +107,7 @@ export class Menus {
       }
     }
     this.root.appendChild(el);
-    (el.querySelector('.btn.primary, .btn') as HTMLElement | null)?.focus({ preventScroll: true });
+    (el.querySelector<HTMLElement>('[data-autofocus]') ?? el.querySelector<HTMLElement>('.btn.primary, .btn'))?.focus({ preventScroll: true });
   }
 
   private mainScreen(): HTMLElement {
@@ -176,22 +181,33 @@ export class Menus {
     const p = document.createElement('div');
     p.className = 'menu-panel card';
     const k = this.input.keys;
+    const pad = this.input.pad;
     const key = (a: keyof typeof k) => k[a].map((c) => `<span class="key">${keyLabel(c)}</span>`).join('');
+    // Stick halves read as one stick ("LS", "RS"); buttons as their names.
+    const padKeys = (...as: (keyof typeof pad)[]) => {
+      const labels = [...new Set(as.flatMap((a) => pad[a].map((t) => (/^a[01][+-]$/.test(t) ? 'LS' : /^a[23][+-]$/.test(t) ? 'RS' : padLabel(t)))))];
+      return labels.map((l) => `<span class="key">${l}</span>`).join('') || '—';
+    };
+    const rows: [ (keyof typeof k)[], string ][] = [
+      [['accelerate'], 'Pedal / accelerate (hold to tuck at speed) · Dive when flying'],
+      [['brake'], 'Brake · Pull up when flying'],
+      [['steerLeft', 'steerRight'], 'Steer / lean'],
+      [['jump'], 'Hop — press right at a lip for extra pop'],
+      [['boost'], 'Boost'],
+      [['pitchForward', 'pitchBack', 'spinLeft', 'spinRight'], 'Flip and spin in the air'],
+      [['trick'], 'Grab (hold in the air)'],
+      [['throw'], 'Throw a bottle / stone at the nearest rider (from Bottle pickups, max 3)'],
+      [['vehicleWheel'], 'Vehicle wheel (hold, pick, release)'],
+      [['respawn'], 'Back to the last checkpoint'],
+      [['camera'], 'Switch camera (chase / far / first person)'],
+      [['pause'], 'Pause'],
+    ];
     p.innerHTML = `<h2 class="menu-heading">How to ride</h2>
-      <div class="controls-overlay">
-        <div>${key('accelerate')}</div><div>Pedal / accelerate (hold to tuck at speed)</div>
-        <div>${key('brake')}</div><div>Brake</div>
-        <div>${key('steerLeft')}${key('steerRight')}</div><div>Steer / lean</div>
-        <div>${key('jump')}</div><div>Hop — press right at a lip for extra pop</div>
-        <div>${key('boost')}</div><div>Boost (sprint)</div>
-        <div>${key('pitchForward')}${key('pitchBack')}${key('spinLeft')}${key('spinRight')}</div><div>Flip and spin in the air</div>
-        <div>${key('trick')}</div><div>Grab (hold in the air)</div>
-        <div>${key('throw')}</div><div>Throw a bottle / stone at the rider ahead (from Bottle pickups, max 3)</div>
-        <div>${key('respawn')}</div><div>Back to the last checkpoint</div>
-        <div>${key('camera')}</div><div>Switch camera (chase / far / first person)</div>
-        <div>${key('pause')}</div><div>Pause</div>
+      <div class="controls-overlay three">
+        <div class="controls-head">Keyboard</div><div class="controls-head">Controller</div><div></div>
+        ${rows.map(([as, text]) => `<div>${as.map(key).join('')}</div><div class="pad-col">${padKeys(...as)}</div><div>${text}</div>`).join('')}
       </div>
-      <div class="menu-tag" style="margin-bottom:14px">Gamepads work too: RT pedal · LT brake · A hop · X boost · B grab · right stick flips</div>
+      <div class="menu-tag" style="margin-bottom:14px">Menus on a controller: D-pad / left stick to move · A select · B back · LB / RB switch tabs</div>
       <div class="row"></div>`;
     p.querySelector('.row')!.append(button('Got it', () => (this.returnTo === 'pause' ? this.show('pause') : this.onControlsClosed()), 'primary small'));
     return p;

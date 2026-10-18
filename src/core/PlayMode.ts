@@ -20,7 +20,7 @@ import { loadNatureKit } from '../models/NatureKit';
 import { PlayerController } from '../player/PlayerController';
 import { HUD } from '../ui/HUD';
 import { NameTags, type NameTagItem } from '../ui/NameTags';
-import { keyLabel } from '../ui/SettingsScreen';
+import { actionLabel } from '../ui/SettingsScreen';
 import { Toast } from '../ui/Toast';
 import { VehicleWheel } from '../ui/VehicleWheel';
 import { vehicleSlots } from '../vehicles/slots';
@@ -126,10 +126,10 @@ export class PlayMode implements GameMode {
       events.on('player:respawn', () => this.chase.snap()),
       events.on('run:state', ({ state }) => {
         if (state === 'countdown') this.chase.release();
-        if (state === 'running') this.toast.show('Run for the edge!  W sprint · Space jump', 3200);
+        if (state === 'running') this.toast.show(`Run for the edge!  ${this.hint('accelerate')} sprint · ${this.hint('jump')} jump`, 3200);
       }),
       events.on('player:switch', ({ from, to }) => {
-        if (to === 'wingsuit' && from === 'onFoot') this.toast.show('Wingsuit!  W dive · S flare · A/D turn · hold Q for a vehicle', 4200);
+        if (to === 'wingsuit' && from === 'onFoot') this.toast.show(`Wingsuit!  ${this.hint('accelerate')} dive · ${this.hint('brake')} flare · ${this.game.input.lastDevice === 'gamepad' ? 'LS' : this.hint('steerLeft') + '/' + this.hint('steerRight')} turn · hold ${this.hint('vehicleWheel')} for a vehicle`, 4200);
       }),
       events.on('run:finish', () => (this.slowMo = RUN.finishSlowMo)),
     );
@@ -181,6 +181,11 @@ export class PlayMode implements GameMode {
     this.chase.snap();
     this.slowMo = 0;
     this.game.loop.timeScale = 1;
+  }
+
+  /** The button for an action on the device in use (first binding). */
+  private hint(a: Parameters<typeof actionLabel>[1]): string {
+    return actionLabel(this.game.input, a).split(' / ')[0]!;
   }
 
   /** The look or paint changed in Customize: dress the parked rider again. */
@@ -247,7 +252,7 @@ export class PlayMode implements GameMode {
       const mode = this.chase.toggleMode();
       this.player.headVisible = mode !== 'first';
       events.emit('camera:mode', { mode });
-      this.toast.show(`${CAMERA_VIEW_LABELS[mode]}  ·  C to switch`);
+      this.toast.show(`${CAMERA_VIEW_LABELS[mode]}  ·  ${this.hint('camera')} to switch`);
     }
     if (run.state === 'intro' && input.framePressed('jump')) run.skipIntro();
     if (input.framePressed('respawn') && run.state === 'running') this.respawnAtCheckpoint();
@@ -392,7 +397,7 @@ export class PlayMode implements GameMode {
       if (!input.isDown('vehicleWheel')) this.closeWheel(this.wheel.close(), true);
     } else if (canSwitch && input.framePressed('vehicleWheel') && this.switchCooldown <= 0) {
       const slots = vehicleSlots(mapBiome(this.world), this.player.heightAboveGround(), (id) => this.canRide(id));
-      this.wheel.open(this.player.vehicle.id, slots, keyLabel(input.keys.vehicleWheel[0] ?? 'KeyQ'));
+      this.wheel.open(this.player.vehicle.id, slots, this.hint('vehicleWheel'));
       this.game.loop.timeScale = SWITCH.wheelTimeScale;
       events.emit('wheel:toggle', { open: true });
     }

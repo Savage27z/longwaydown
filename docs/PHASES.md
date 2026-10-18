@@ -589,3 +589,12 @@ New in this phase:
 - **Unlock pop-ups:** the results screen shows new mountains, vehicles, outfits and eyewear.
 - **Testing:** Settings → Progression → "Unlock everything", or `?unlockall` in the URL.
 - **Tests:** `tests/progression.test.ts` (3).
+
+### Controller fixes
+- **Menus work on a controller** (`ui/MenuNav.ts`):
+  - D-pad or left stick moves focus to the nearest control in that direction, and holding repeats.
+  - A selects, B goes back, LB / RB switch the Customize tabs, and left / right adjust sliders and dropdowns.
+  - Map cards can take focus now.
+  - The press that starts a run doesn't skip the intro.
+- **Y throws** (D-pad up does too). Respawn moved to D-pad down; Restart stays in the pause menu.
+- The Controls screen lists keyboard and controller side by side, and in-run hints show the buttons of the device in use.

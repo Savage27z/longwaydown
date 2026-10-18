@@ -100,7 +100,16 @@ export function mapSelectScreen(save: Save, onPick: (id: MapId) => void, onBack:
         <div>Drop<b>${map.totalDrop.toLocaleString()} m</b></div>
         <div>Best<b>${best ? formatTime(best.time, false) : '—'}</b></div>
       </div>`;
-    if (unlocked) card.addEventListener('click', () => onPick(id));
+    if (unlocked) {
+      card.tabIndex = 0;
+      card.addEventListener('click', () => onPick(id));
+      card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') onPick(id);
+      });
+      // The last unlocked mountain gets focus (keyboard / gamepad start right there).
+      cards.querySelectorAll('[data-autofocus]').forEach((x) => x.removeAttribute('data-autofocus'));
+      card.dataset.autofocus = '';
+    }
     cards.appendChild(card);
     requestAnimationFrame(() => drawPreview(card.querySelector('canvas')!, c, map.biome === 'snow' ? '#3ec8ff' : '#7ddc5a'));
   }

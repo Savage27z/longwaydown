@@ -1119,3 +1119,42 @@ input[type='range'] {
     opacity: 0;
   }
 }
+
+/* ---------- Gamepad / keyboard focus in menus ---------- */
+.map-card:focus-visible,
+.menu-root.pad .map-card:focus {
+  outline: none;
+  border-color: var(--accent);
+  transform: translateY(-3px);
+}
+.menu-root.pad .btn:focus {
+  background: rgba(255, 255, 255, 0.16);
+  border-left-color: var(--accent);
+  transform: skewX(-12deg) translateX(6px);
+  outline: none;
+}
+.menu-root.pad .btn.primary:focus {
+  background: #ff7340;
+}
+.menu-root.pad .chip:focus,
+.menu-root.pad .sw:focus,
+.menu-root.pad input:focus,
+.menu-root.pad select:focus,
+.menu-root.pad .bind-list button:focus {
+  outline: 3px solid var(--accent-2);
+  outline-offset: 2px;
+}
+.controls-overlay .pad-col .key {
+  background: rgba(62, 200, 255, 0.18);
+}
+.controls-head {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+.controls-overlay.three {
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+}

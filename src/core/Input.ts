@@ -173,6 +173,11 @@ export class Input {
     return this.value(pos) - this.value(neg);
   }
 
+  /** A rebinding capture is waiting for a key / pad press. */
+  get capturing(): boolean {
+    return this.captureCb !== null || this.padCaptureCb !== null;
+  }
+
   hasGamepad(): boolean {
     return this.activeGamepad() !== null;
   }

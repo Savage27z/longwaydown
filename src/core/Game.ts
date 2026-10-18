@@ -81,6 +81,7 @@ export class Game {
       setQuality: (q) => this.setQuality(q),
       applySettings: () => this.applySettings(),
     });
+    this.menus.back = () => this.menuBack();
     events.on('run:finish', ({ results }) => {
       this.pendingResults = results;
       this.finishTimer = RUN.resultsDelay;
@@ -251,7 +252,21 @@ export class Game {
     }
     const live = this.simulating;
     if (this.mode) this.mode.update(realDt, live ? simDt : 0, live ? alpha : 1);
+    // After the mode: a menu press that starts a run must not also count as an in-run press.
+    if (this.menus.open && !this.input.capturing) this.menus.nav.update(realDt);
+    else this.menus.nav.sync();
     for (const hook of this.frameHooks) hook(realDt);
+  }
+
+  /** Gamepad B in a menu: one screen back (pause closes, results stay). */
+  private menuBack(): void {
+    const cur = this.menus.current;
+    if (cur === 'main' || cur === 'results') return;
+    if (cur === 'pause') return this.resume();
+    // Screens with their own Back / Done / Got it button: press it (it knows where to return).
+    const own = this.menus.root.querySelector<HTMLElement>(cur === 'controls' ? '.row .btn.primary' : '[data-back]');
+    if (own) own.click();
+    else this.menus.show(this.state === 'paused' ? 'pause' : 'main');
   }
 
   private togglePause(): void {
