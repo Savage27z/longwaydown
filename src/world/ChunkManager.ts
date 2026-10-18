@@ -45,7 +45,8 @@ export class ChunkManager {
     private readonly origin: THREE.Vector3,
     private graphics: GraphicsSettings,
   ) {
-    this.material = shared(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
+    // Smooth shading from the baked height-gradient normals (flat facets read as cheap at speed).
+    this.material = shared(new THREE.MeshLambertMaterial({ vertexColors: true }));
     this.pool = new WorkerPool(mapId, (r, ms) => {
       this.stats.lastBuildMs = ms;
       this.ready.push(r);
@@ -68,6 +69,12 @@ export class ChunkManager {
     const t = this.tiles.get(`${Math.floor(gx / S)},${Math.floor(gz / S)}`);
     if (t) return t.surfaceAt(gx, gz);
     return this.sampler.surfaceAt(gx, gz);
+  }
+
+  /** LOD of the tile drawn under this global point (1 when none is loaded yet). */
+  lodAt(gx: number, gz: number): number {
+    const S = WORLD.chunkSize;
+    return this.tiles.get(`${Math.floor(gx / S)},${Math.floor(gz / S)}`)?.lod ?? 1;
   }
 
   /** Is there a physics collider under this global point? */

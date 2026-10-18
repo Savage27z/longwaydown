@@ -14,6 +14,7 @@ import { FloatingOrigin } from './FloatingOrigin';
 import { PropLibrary } from './Props';
 import { Sky } from './Sky';
 import { TerrainSampler } from './TerrainSampler';
+import { TrailRibbon } from './TrailRibbon';
 import { yieldTask } from '../utils/yieldTask';
 
 export type WorldProgress = (p: number, msg: string) => void;
@@ -28,6 +29,7 @@ export class World {
   readonly sky: Sky;
   readonly props: PropLibrary;
   readonly courseProps: CourseProps;
+  readonly trail: TrailRibbon;
   backdrop: Backdrop | null = null;
   private focusGlobal = new THREE.Vector3();
   private trimTimer = 0;
@@ -50,6 +52,7 @@ export class World {
     this.props = new PropLibrary(this.sampler.biome, getNatureKit());
     this.chunks = new ChunkManager(mapId, this.sampler, physics, renderer.worldRoot, this.props, this.origin.origin, graphics);
     this.courseProps = new CourseProps(this.sampler, renderer.worldRoot, physics, this.origin.origin);
+    this.trail = new TrailRibbon(this.sampler, renderer.worldRoot, (x, z) => this.chunks.lodAt(x, z));
   }
 
   static async create(mapId: MapId, renderer: Renderer, physics: PhysicsWorld, graphics: GraphicsSettings, progress: WorldProgress): Promise<World> {
@@ -64,6 +67,7 @@ export class World {
     const bd = await backdropP;
     world.backdrop = new Backdrop(bd, renderer.worldRoot, graphics.nearRadius);
     world.courseProps.update(0, start, true);
+    world.trail.update(world.courseProps.startS, 40);
     progress(1, 'Ready');
     return world;
   }
@@ -111,6 +115,7 @@ export class World {
     this.chunks.update(dt, this.focusGlobal, progressS);
     this.courseProps.update(dt, this.focusGlobal);
     this.courseProps.animate(dt, this.focusGlobal);
+    this.trail.update(progressS, 2, dt);
     this.backdrop?.update(focusLocal);
     this.sky.update(this.renderer.camera, focusLocal, this.origin.origin.y);
     this.trimTimer -= dt;
@@ -122,6 +127,7 @@ export class World {
 
   dispose(): void {
     this.courseProps.dispose();
+    this.trail.dispose();
     this.chunks.dispose();
     this.backdrop?.dispose();
     this.props.dispose();

@@ -36,6 +36,35 @@ export function tube(a: THREE.Vector3, b: THREE.Vector3, r0: number, mat: THREE.
   return m;
 }
 
+/** Hydroformed-looking tube: tapered, and narrower side to side (local X) than it is deep. */
+export function oval(a: THREE.Vector3, b: THREE.Vector3, r0: number, r1: number, squash: number, mat: THREE.Material, seg = 12): THREE.Mesh {
+  const m = tube(a, b, r0, mat, r1, seg);
+  // Tubes in the frame plane rotate about X only, so local X stays the bike's side axis.
+  m.geometry.scale(squash, 1, 1);
+  return m;
+}
+
+/** Coil spring between two points. */
+export function coil(a: THREE.Vector3, b: THREE.Vector3, radius: number, wire: number, turns: number, mat: THREE.Material): THREE.Mesh {
+  const len = a.distanceTo(b);
+  const pts: THREE.Vector3[] = [];
+  const steps = turns * 12;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const ang = t * turns * Math.PI * 2;
+    pts.push(new THREE.Vector3(Math.cos(ang) * radius, t * len - len / 2, Math.sin(ang) * radius));
+  }
+  const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), steps, wire, 5, false), mat);
+  m.position.copy(a).add(b).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+  return m;
+}
+
+/** Brake hose / gear cable through a few points. */
+export function cable(points: THREE.Vector3[], r: number, mat: THREE.Material): THREE.Mesh {
+  return new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), points.length * 8, r, 4, false), mat);
+}
+
 export function joint(p: THREE.Vector3, r: number, mat: THREE.Material): THREE.Mesh {
   const m = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 8), mat);
   m.position.copy(p);
@@ -69,14 +98,14 @@ function tyre(radius: number, width: number, mtb: boolean, mat: THREE.Material):
 }
 
 /** Complete wheel: treaded tyre, double-wall rim, crossed spokes, hub, optional disc rotor. */
-export function wheel(radius: number, width: number, mtb: boolean, m: BikeMaterials, disc: boolean): THREE.Group {
+export function wheel(radius: number, width: number, mtb: boolean, m: BikeMaterials, disc: boolean, spokeMat: THREE.Material = m.chrome, rimMat: THREE.Material = m.metal): THREE.Group {
   const g = new THREE.Group();
   g.add(tyre(radius, width, mtb, m.rubber));
   const rimR = radius - width * 2;
   const rim = new THREE.Mesh(new THREE.TorusGeometry(rimR, 0.014, 6, 48), m.dark);
   rim.rotation.y = Math.PI / 2;
   g.add(rim);
-  const rimWall = new THREE.Mesh(new THREE.CylinderGeometry(rimR + 0.004, rimR + 0.004, 0.026, 48, 1, true), m.metal);
+  const rimWall = new THREE.Mesh(new THREE.CylinderGeometry(rimR + 0.004, rimR + 0.004, 0.026, 48, 1, true), rimMat);
   rimWall.rotation.z = Math.PI / 2;
   g.add(rimWall);
   // Hub with flanges.
@@ -97,7 +126,7 @@ export function wheel(radius: number, width: number, mtb: boolean, m: BikeMateri
     const a1 = a0 + side * 0.35;
     const p0 = new THREE.Vector3(0.04 * side, Math.sin(a0) * 0.032, Math.cos(a0) * 0.032);
     const p1 = new THREE.Vector3(0.006 * side, Math.sin(a1) * (rimR - 0.006), Math.cos(a1) * (rimR - 0.006));
-    g.add(tube(p0, p1, 0.0022, m.chrome, 0.0022, 4));
+    g.add(tube(p0, p1, 0.0022, spokeMat, 0.0022, 4));
   }
   if (disc) {
     const rotor = new THREE.Mesh(new THREE.TorusGeometry(0.068, 0.009, 4, 24), m.chrome);

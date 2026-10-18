@@ -266,6 +266,11 @@ export class TerrainSampler {
     return this.surfaceWith(x, z, F2, h, Math.hypot(hx, hz));
   }
 
+  /** 0..1 snow cover on high alpine peaks at (x, z, h) on gentle ground (as colorWith paints it). */
+  snowCapAt(x: number, z: number, h: number): number {
+    return smoothstep(this.snowlineAbove - 150, this.snowlineAbove + 150, h + this.nPatch(x / 90, z / 90) * 80);
+  }
+
   /** Linear-space vertex colour. Writes 3 floats into `out` at `o`. */
   colorWith(x: number, z: number, F: CourseFields, h: number, slope: number, surface: number, out: Float32Array | number[], o: number): void {
     const base = this.surfaceLinear[surface]!;

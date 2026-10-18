@@ -380,3 +380,43 @@ Feedback: "everything feels off" against **Riders Republic**: controls, looks, p
 **Tests:** 53, adding the trail's sink and smoothness, berms banking outward, always-downhill, forest trees beside but never on the trail, and the wheel without the jet.
 
 **Known:** the trail colour band is subtle in shade; trail textures and decals come with Step C (looks). Crowds are Step D. The CC0 nature kit (99 MB) is waiting for your download approval in Step C.
+
+## Looks + crowds (Steps C + D)
+Goal: the mountain should look like a lively race venue, not primitives on an empty slope.
+
+**C — Looks**
+- **Nature kit** (Quaternius Stylized Nature MegaKit, CC0, downloaded by you):
+  - Picks are packed into one 1.6 MB `public/models/nature.glb` by `scripts/build-nature.mjs`: pines, broadleaf trees, rocks, grass and flowers.
+  - "Hero" trees are used only within 35 m of the trail, and none on the Low preset. Grass and flower clumps line the trail on grassy ground.
+  - Procedural prop parts are cached so instancing works: 221 draw calls, down from 723 or more.
+- **Terrain shading** is smooth (the baked height-gradient normals) instead of flat facets.
+- **Trail ribbon** (`world/TrailRibbon.ts`): a textured strip laid exactly on the drawn terrain tile, following its LOD0 or LOD1 triangles and normals. A segment is rebuilt when the tile under it changes LOD.
+  - Snow Peak: groomed corduroy with groomer-pass seams and faint board tracks.
+  - Green Ridge: packed dirt with tyre ruts and stones.
+  - Edges fade into the terrain. Ice sections are tinted. It is hidden over water and under alpine snow caps.
+  - It streams 120 m behind to 650 m ahead, nearest segments first.
+- **Vehicles** (procedural, CC0-free):
+  - **Mountain bike:** a full-suspension enduro bike with a hydroformed frame, coil shock on a rocker, a swingarm that moves with compression, gold fork stanchions, 2.4" tyres and brake hoses.
+  - **Bicycle:** a modern hardtail trail bike.
+  - **Motorbike:** a motocross bike with a twin-spar aluminium frame, upside-down fork, moulded plastics (shrouds with graphics, white number boards, high front fender), coil shock, exhaust and chain drive.
+  - **Snowboard:** a sidecut board with a graphic top sheet and strap bindings with highbacks, set at the rider's stance angle.
+  - **Skis:** twin-tip skis with graphics, toe and heel pieces and brakes. New poles with grips, straps and baskets.
+  - **Hover car:** a white teardrop pod with glowing pads.
+  - **Volt Roadster** (new slot): modelled on the 2026 thruster Roadster demo, unbranded.
+    - Look: low faceted white wedge, dark bronze bubble canopy, a tail deck that lifts into a wing, four rear nozzles plus a ring of down and side nozzles, and a single seat.
+    - It doesn't fly, like the real car. Space fires cold-gas thrusters for a big jump and leaves a gas cloud.
+    - Hold Space for a short hover. Side jets speed up flips and spins.
+    - The nozzle ring rights the car and cushions landings. Shift fires the rear thrusters.
+    - A self-refilling THRUSTERS meter, plus suction-fan grip.
+- **Race-event dressing** (`models/procedural/event.ts`):
+  - Inflatable arches with canvas banners (START, CHECKPOINT n, and a checkered FINISH).
+  - Pop-up tents and feather flags.
+- **Dev:** `/src/dev/models.html?ids=…&name=…` renders vehicle models alone from four angles to `.shots/` (dev server only, not in the build).
+
+**D — People**
+- **Spectator crowds** (`models/Crowd.ts`):
+  - The CC0 rider-pack characters are posed and baked once into static meshes: 8 mixed looks × 4 cheer pose pairs.
+  - Each crowd is 2 merged meshes behind a fence collider. They flip between cheer poses within 260 m of the rider and are drawn within 450 m.
+  - Placed at the start (both sides), every checkpoint, every other jump and the finish.
+
+**Tests:** 53 (unchanged). Typecheck and build are clean, and the dev viewer is not in `dist`.

@@ -36,7 +36,7 @@ export class Bicycle extends ArcadeVehicle {
     this.leanFactor = 0.75;
     const m = createModel(`vehicle:${id}`, paint);
     this.model.add(m);
-    for (const name of ['wheelFront', 'wheelRear', 'steer', 'crank', 'pedalL', 'pedalR', 'seat', 'gripL', 'gripR', 'forkSlider']) {
+    for (const name of ['wheelFront', 'wheelRear', 'steer', 'crank', 'pedalL', 'pedalR', 'seat', 'gripL', 'gripR', 'forkSlider', 'swingarm']) {
       const o = m.getObjectByName(name);
       if (o) this.parts[name] = o;
     }
@@ -84,6 +84,8 @@ export class Bicycle extends ArcadeVehicle {
     if (p.forkSlider && this.id === 'mountainBike') {
       p.forkSlider.position.copy(this.steerAxis).multiplyScalar(-this.telemetry.compression * 0.09);
     }
+    // Full-suspension rear end: the frame drops on its springs, the swingarm keeps the wheel down.
+    if (p.swingarm) p.swingarm.rotation.x = -this.telemetry.compression * 0.1;
     // Out-of-the-saddle sprint: the bike rocks side to side with each pedal stroke.
     this.rock = Math.sin(this.crankAngle) * 0.13 * this.sprintAmt;
     if (Math.abs(this.rock) > 1e-4) this.model.quaternion.multiply(this.rockQ.setFromAxisAngle(Bicycle.FWD, this.rock));
