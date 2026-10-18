@@ -54,6 +54,8 @@ export class PlayMode implements GameMode {
   private throwables: Throwables;
   private throwRiders: ThrowRider[] = [];
   private botThrowWait = new Map<string, number>();
+  /** Bots don't target you for a while after knocking you out. */
+  private playerGrace = 0;
   private pickupRiders: PickupRider[] = [];
   private tagItems: NameTagItem[] = [];
   readonly dev = { flyCam: false, orbitCam: false };
@@ -105,6 +107,7 @@ export class PlayMode implements GameMode {
     this.throwRiders = this.race.entries.map((e) => ({ id: e.id, name: e.name, rider: e.rider, local: e.kind === 'local' }));
     this.throwables.onHit = (from, to, blocked) => {
       if (!blocked) from.rider.perks.knockouts++;
+      if (!blocked && to.local) this.playerGrace = THROW.playerGrace;
       events.emit('rider:hit', { from: from.name, to: to.name, byYou: from.local, onYou: to.local, blocked });
     };
     this.target = {
@@ -346,6 +349,7 @@ export class PlayMode implements GameMode {
   /** Throws: launch what riders asked for, let bots decide, fly the projectiles. */
   private updateThrows(dt: number, racing: boolean): void {
     const riders = this.throwRiders;
+    this.playerGrace = Math.max(0, this.playerGrace - dt);
     if (racing) {
       for (const e of this.race.bots) {
         const d = e.driver;
@@ -353,7 +357,8 @@ export class PlayMode implements GameMode {
         this.botThrowWait.set(e.id, wait);
         if (!d || wait > 0 || e.rider.perks.ammo <= 0 || e.rider.ghost || e.rider.state !== 'riding') continue;
         const from = riders.find((r) => r.id === e.id)!;
-        if (!this.throwables.pickTarget(from, riders)) continue;
+        const target = this.throwables.pickTarget(from, riders);
+        if (!target || (target.local && this.playerGrace > 0)) continue;
         if (Math.random() < THROW.botRate * (0.5 + d.skill.level) * dt) {
           d.throwNow = true;
           this.botThrowWait.set(e.id, THROW.botCooldown);

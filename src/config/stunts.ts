@@ -68,9 +68,11 @@ export const THROW = {
   /** Minimum seconds between one rider's throws. */
   cooldown: 1,
   /** Bots: chance per second to throw when a target is lined up (scaled by skill / difficulty). */
-  botRate: 0.3,
+  botRate: 0.22,
   /** Bots wait at least this long between their own throws (s). */
   botCooldown: 6,
+  /** After you're knocked out, bots leave you alone this long (s). */
+  playerGrace: 12,
 };
 
 /** Pickups along the trail and the buffs they give. */

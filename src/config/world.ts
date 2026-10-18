@@ -9,6 +9,10 @@ export const WORLD = {
   originShiftDistance: 2000,
   /** Terrain tile edge length (m). */
   chunkSize: 256,
+  /** Tiles farther than the shadow box plus this (m) stop casting shadows (tall trees reach in). */
+  shadowTileMargin: 30,
+  /** LOD0 tiles farther than this (m, nearest edge) draw low-detail props. */
+  propDetailRadius: 220,
   /** Segments per tile edge per LOD (LOD0 is also the physics heightfield resolution). */
   lodSegments: [128, 64] as const,
   /** Tiles along the spline to keep at LOD0 + physics. */

@@ -168,9 +168,26 @@ export class ChunkManager {
     if (this.planTimer <= 0 || moved) {
       this.planTimer = 0.4;
       this.plan(focusGlobal, progressS);
+      this.updateDetail(focusGlobal);
     }
     this.finalize(WORLD.buildsPerFrame);
     this.stepColliders(400);
+  }
+
+  /**
+   * Only tiles that overlap the sun's shadow box (plus a margin for tall trees) cast shadows:
+   * instanced props are culled per tile, so far tiles would otherwise fill the shadow pass.
+   */
+  private updateDetail(focus: THREE.Vector3): void {
+    const S = WORLD.chunkSize;
+    const reach = this.graphics.shadowExtent + WORLD.shadowTileMargin;
+    for (const t of this.tiles.values()) {
+      const dx = Math.max(t.ix * S - focus.x, 0, focus.x - (t.ix + 1) * S);
+      const dz = Math.max(t.iz * S - focus.z, 0, focus.z - (t.iz + 1) * S);
+      const d = Math.hypot(dx, dz);
+      t.setShadows(this.graphics.shadows && d < reach);
+      t.setDetail(d < WORLD.propDetailRadius);
+    }
   }
 
   finalize(budget: number): number {

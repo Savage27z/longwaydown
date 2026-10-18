@@ -23,6 +23,10 @@ export class TerrainChunk {
   readonly maxY: number;
   private mesh: THREE.Mesh;
   private props: THREE.InstancedMesh[];
+  /** Low-detail props for a LOD0 tile seen from far away (built on first need). */
+  private farProps: THREE.InstancedMesh[] | null = null;
+  private lib: PropLibrary;
+  private detailed = true;
   private heights: Float32Array;
   private propData: Float32Array[];
   private body: RapierNS.RigidBody | null = null;
@@ -33,6 +37,7 @@ export class TerrainChunk {
   readonly obstacles: Float32Array;
 
   constructor(r: TileResult, material: THREE.Material, lib: PropLibrary, parent: THREE.Object3D, castShadows: boolean) {
+    this.lib = lib;
     this.ix = r.ix;
     this.iz = r.iz;
     this.lod = r.lod;
@@ -146,7 +151,27 @@ export class TerrainChunk {
   }
 
   setShadows(cast: boolean): void {
-    for (const p of this.props) if (p.userData.kind !== 'pebble') p.castShadow = cast && this.lod === 0;
+    for (const p of this.props) if (p.userData.kind !== 'pebble' && p.userData.kind !== 'grass') p.castShadow = cast && this.lod === 0;
+  }
+
+  /**
+   * LOD0 tiles keep physics, but far from the camera they draw the low-detail props (simple
+   * trees, no grass / pebbles) instead of the full kit models.
+   */
+  setDetail(near: boolean): void {
+    if (this.lod !== 0 || near === this.detailed) return;
+    this.detailed = near;
+    if (!near && !this.farProps) {
+      this.farProps = this.lib.buildTileProps(this.propData, 1, false);
+      for (const p of this.farProps) {
+        p.matrixAutoUpdate = false;
+        p.updateMatrix();
+        this.group.add(p);
+        p.updateMatrixWorld(true);
+      }
+    }
+    for (const p of this.props) p.visible = near;
+    if (this.farProps) for (const p of this.farProps) p.visible = !near;
   }
 
   dispose(physics: PhysicsWorld): void {
@@ -154,5 +179,6 @@ export class TerrainChunk {
     this.group.removeFromParent();
     this.mesh.geometry.dispose();
     for (const p of this.props) p.dispose();
+    if (this.farProps) for (const p of this.farProps) p.dispose();
   }
 }

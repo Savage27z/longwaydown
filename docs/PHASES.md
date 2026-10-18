@@ -625,3 +625,22 @@ All sound is synthesised with Web Audio, so no audio files are needed (`audio/Au
   - Everything goes quiet under pause and menus.
   - Audio starts on the first click, key or pad press (browser autoplay rules).
 - **Music slot:** set `AUDIO.music` to a file in `/public` to loop it on the music bus. It is empty by default.
+
+## Phase 10 — Polish & Performance ✅
+Already in from earlier phases: particles (spray, puffs), speed lines and FOV, cinematic intro and finish orbits, graphics presets, gamepad and rebinding, Rapier lazy-loaded behind the loading screen, and the dev stats overlay.
+
+This phase:
+- **Memory pass:** a full automated 26 km Snow Peak descent, sampled every few seconds.
+  - Geometries stay around 360–420 and textures around 37.
+  - JS heap swings between 190 and 315 MB with GC and doesn't climb.
+  - Colliders rise in the forests and fall back afterwards (717 at the finish).
+  - No leaks.
+- **Rendering pass:** in a dense forest, triangles went from 2.68M to 1.90M a frame (−29%).
+  - **Shadow culling per tile:** only tiles within the sun's shadow box (+30 m) cast shadows. Instanced trees used to put every near tile into the shadow pass.
+  - **Prop detail by distance:** near tiles more than 220 m away (nearest edge) draw the simple trees and skip grass and pebbles. They keep their physics. Both values are in `config/world.ts`.
+- **Bug sweep:** full automated runs on both mountains finish with no console errors.
+  - Bot bottles were knocking out a rider stuck in the pack about every 30 s. Bots now leave you alone for 12 s after a knockout (`THROW.playerGrace`), and their throw rate went from 0.3 to 0.22.
+  - Hits on that test run halved.
+- **Production:** `vercel.json` adds immutable caching for hashed `/assets` and day caching for `/models`.
+  - The preview build loads with no errors and no dev tools.
+  - The README now covers controls, Customize and deploying.
