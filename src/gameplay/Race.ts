@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BOT_LEVELS, BOT_MISTAKES, BOT_NAMES, BOT_PAINTS, BOT_VEHICLES, RACE } from '../config/race';
+import { BOT_GARAGES, BOT_LEVELS, BOT_MISTAKES, BOT_NAMES, BOT_PAINTS, BOT_SWITCH, DIFFICULTY, RACE, type Difficulty } from '../config/race';
 import { RIDING } from '../config/vehicles';
 import { MAPS } from '../config/maps';
 import { OUTFITS, type OutfitId, type RiderLook } from '../config/riders';
@@ -38,6 +38,11 @@ export interface RaceEntry {
   /** Ghost slips: seconds left of a slow-down or a crash stop. */
   ghostSlow: number;
   ghostStop: number;
+  /** Ground vehicles this bot switches between (first = starting vehicle), and its base skill. */
+  garage: VehicleId[];
+  baseLevel: number;
+  /** Last checkpoint index passed (for switch rolls). */
+  checkpoint: number;
 }
 
 /** Vehicles whose progress says nothing about the ground pace (start run-up, wingsuit glide). */
@@ -85,7 +90,7 @@ export class Race {
     private readonly finishS: number,
     private readonly checkpoints: number[],
   ) {
-    this.local = { id: 'you', name: 'You', kind: 'local', rider: player, driver: null, color: '#ff5a1f', penalties: 0, finishTime: null, pace: 0, lastS: spawnS, ghostHold: 0, ghostSlow: 0, ghostStop: 0 };
+    this.local = { id: 'you', name: 'You', kind: 'local', rider: player, driver: null, color: '#ff5a1f', penalties: 0, finishTime: null, pace: 0, lastS: spawnS, ghostHold: 0, ghostSlow: 0, ghostStop: 0, garage: [], baseLevel: 1, checkpoint: -1 };
     this.entries.push(this.local);
     const biome = MAPS[world.mapId].biome;
     const rng = makeRng(`race:${world.mapId}`);
@@ -94,12 +99,13 @@ export class Race {
       const part = () => BOT_OUTFITS[Math.floor(rng() * BOT_OUTFITS.length)]!;
       const look: RiderLook = { head: part(), body: part(), legs: part(), feet: part(), backpack: rng() < 0.4 };
       const [primary, secondary] = BOT_PAINTS[k % BOT_PAINTS.length]!;
-      const vehicle = BOT_VEHICLES[biome][k % BOT_VEHICLES[biome].length]!;
+      const garage = BOT_GARAGES[biome][k % BOT_GARAGES[biome].length]!;
+      const vehicle = garage[0]!;
       const driver = new BotDriver(world, { level: BOT_LEVELS[k] ?? 0.8, lane: (rng() - 0.5) * 5, seed: rng() * 10 });
       const rider = new PlayerController(game, world, 'onFoot', spawnS, { local: false, source: driver, look, paint: { primary, secondary } });
       rider.lastGround = vehicle;
       driver.rider = rider;
-      const entry: RaceEntry = { id: `bot${k}`, name: names[k]!, kind: 'bot', rider, driver, color: primary, penalties: 0, finishTime: null, pace: nominal(vehicle), lastS: spawnS, ghostHold: 0, ghostSlow: 0, ghostStop: 0 };
+      const entry: RaceEntry = { id: `bot${k}`, name: names[k]!, kind: 'bot', rider, driver, color: primary, penalties: 0, finishTime: null, pace: nominal(vehicle), lastS: spawnS, ghostHold: 0, ghostSlow: 0, ghostStop: 0, garage, baseLevel: BOT_LEVELS[k] ?? 0.7, checkpoint: -1 };
       rider.resetS = () => this.respawnS(entry);
       rider.onEvent = (type, payload) => {
         if (type === 'player:crash' && this.lastRunState === 'running' && entry.finishTime === null) entry.penalties += (payload as { penalty: number }).penalty;
@@ -120,13 +126,18 @@ export class Race {
     return { s: this.spawnS - row * RACE.gridRowGap, lat: (col - (per - 1) / 2) * RACE.gridSpacing };
   }
 
+  /** Current difficulty (set on reset). */
+  difficulty: Difficulty = 'normal';
+
   /** Lateral offset of the local player's grid slot. */
   get playerLat(): number {
     return this.slot(RACE.playerSlot).lat;
   }
 
-  /** Line everyone up on the grid, frozen, with a fresh clock. */
-  reset(): void {
+  /** Line everyone up on the grid, frozen, with a fresh clock, at a difficulty. */
+  reset(difficulty: Difficulty = this.difficulty): void {
+    this.difficulty = difficulty;
+    const d = DIFFICULTY[difficulty];
     this.time = 0;
     let j = 0;
     for (const e of this.entries) {
@@ -137,7 +148,15 @@ export class Race {
       if (j === RACE.playerSlot) j++;
       const { s, lat } = this.slot(j++);
       e.rider.autoBrake = false;
+      e.rider.lastGround = e.garage[0]!;
       e.rider.respawnAt(s, 0, 'start', lat);
+      e.checkpoint = -1;
+      if (e.driver) {
+        e.driver.skill.level = Math.max(0.3, Math.min(0.97, e.baseLevel + d.level));
+        e.driver.mistakeMul = d.mistakes;
+        e.driver.boostMul = d.boost;
+        e.driver.switchCooldown = 0;
+      }
       e.rider.frozen = true;
       e.pace = nominal(e.rider.lastGround);
       e.ghostHold = 0;
@@ -199,14 +218,27 @@ export class Race {
       }
       // Rubber band: ease off well ahead of the player, push a little when well behind.
       const band = Math.max(-1, Math.min(1, (s - playerS) / RACE.bandDistance));
-      if (e.driver) e.driver.push = 1 - band * (band > 0 ? RACE.bandEase : RACE.bandPush);
+      const diff = DIFFICULTY[this.difficulty];
+      if (e.driver) e.driver.push = 1 - band * (band > 0 ? diff.ease : RACE.bandPush);
+      // Checkpoints are where riders change vehicle (like picking a new ride at a gate).
+      let cp = e.checkpoint;
+      while (cp + 1 < this.checkpoints.length && s >= this.checkpoints[cp + 1]!) cp++;
+      if (cp !== e.checkpoint) {
+        e.checkpoint = cp;
+        const v = r.vehicle.id;
+        const next = run.state === 'running' && r.state === 'riding' && !NOT_GROUND.has(v) && (r.ghost || r.vehicle.telemetry.grounded) ? e.driver?.pickSwitch(e.garage, v) : null;
+        if (next && r.switchTo(next, { silent: r.ghost })) {
+          e.pace = nominal(next);
+          if (e.driver) e.driver.switchCooldown = BOT_SWITCH.cooldown;
+        }
+      }
       const push = e.driver?.push ?? 1;
       // Ghosts coast at the learned pace, kept within reason of what the vehicle really does.
       const base = nominal(r.lastGround);
       const [lo, hi] = RACE.ghostPaceBand;
       const level = e.driver?.skill.level ?? 0.8;
       const skill = 0.84 + level * 0.14;
-      let ghostPace = Math.max(base * lo, Math.min(base * hi, e.pace)) * push * skill;
+      let ghostPace = Math.max(base * lo, Math.min(base * hi, e.pace)) * push * skill * DIFFICULTY[this.difficulty].pace;
       // Ghosts slip and crash too (same odds as riding for real), so nobody coasts a perfect line.
       if (r.ghost && run.state === 'running' && e.finishTime === null && simDt > 0) {
         const M = BOT_MISTAKES;

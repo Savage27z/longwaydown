@@ -1,4 +1,5 @@
 import { MAP_ORDER, MAPS, type MapId } from '../config/maps';
+import { DIFFICULTIES, DIFFICULTY } from '../config/race';
 import type { Save } from '../core/Save';
 import { generateCourse, type CourseData } from '../world/CourseGenerator';
 import { formatTime } from '../utils/math';
@@ -67,7 +68,20 @@ function drawPreview(canvas: HTMLCanvasElement, c: CourseData, accent: string): 
 export function mapSelectScreen(save: Save, onPick: (id: MapId) => void, onBack: () => void): HTMLElement {
   const panel = document.createElement('div');
   panel.className = 'menu-panel wide card';
-  panel.innerHTML = `<h2 class="menu-heading">Choose your mountain</h2><div class="map-cards"></div><div class="row back-row"><button class="btn small" data-back><span>Back</span></button></div>`;
+  panel.innerHTML = `<h2 class="menu-heading">Choose your mountain</h2><div class="difficulty"><span>Rivals</span></div><div class="map-cards"></div><div class="row back-row"><button class="btn small" data-back><span>Back</span></button></div>`;
+  // Difficulty of the 7 bots you race (saved).
+  const diff = panel.querySelector('.difficulty')!;
+  for (const d of DIFFICULTIES) {
+    const b = document.createElement('button');
+    b.className = `btn small${save.data.settings.difficulty === d ? ' primary' : ''}`;
+    b.innerHTML = `<span>${DIFFICULTY[d].label}</span>`;
+    b.addEventListener('click', () => {
+      save.data.settings.difficulty = d;
+      save.write();
+      diff.querySelectorAll('button').forEach((x) => x.classList.toggle('primary', x === b));
+    });
+    diff.appendChild(b);
+  }
   const cards = panel.querySelector('.map-cards')!;
   for (const id of MAP_ORDER) {
     const map = MAPS[id];

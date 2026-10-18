@@ -823,3 +823,18 @@ input[type='range'] {
   font-style: normal;
   font-variant-numeric: tabular-nums;
 }
+.difficulty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: -4px 0 14px;
+}
+.difficulty > span {
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin-right: 4px;
+}

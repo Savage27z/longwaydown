@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { SNOW_SURFACES, SURFACE_PHYSICS, SURFACES, type SurfaceId } from '../config/surfaces';
 import { RIDING, type VehicleId } from '../config/vehicles';
 import { Group, groups, GROUND_QUERY, type PhysicsWorld } from '../physics/PhysicsWorld';
-import { R } from '../physics/rapier';
+import { R, type RapierNS } from '../physics/rapier';
 import { InterpolatedTransform } from '../utils/Interp';
 import { clamp, damp, lerp, wrapAngle } from '../utils/math';
 import { Vehicle, type TransferState, type VehicleContext, type VehicleInput } from './Vehicle';
@@ -69,13 +69,14 @@ export abstract class ArcadeVehicle extends Vehicle {
     this.body = physics.world.createRigidBody(
       RAPIER.RigidBodyDesc.dynamic().lockRotations().setCcdEnabled(true).setCanSleep(false).setTranslation(state.position.x, state.position.y, state.position.z),
     );
-    physics.world.createCollider(
+    // Riders bump into each other (vehicle vs vehicle), as well as terrain and props.
+    this.collider = physics.world.createCollider(
       RAPIER.ColliderDesc.ball(s.colliderRadius)
         .setMass(s.mass)
         .setFriction(0)
         .setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min)
-        .setRestitution(0)
-        .setCollisionGroups(groups(Group.VEHICLE, Group.TERRAIN | Group.PROP)),
+        .setRestitution(0.15)
+        .setCollisionGroups(groups(Group.VEHICLE, Group.TERRAIN | Group.PROP | Group.VEHICLE)),
       this.body,
     );
     this.place(state);
@@ -104,6 +105,12 @@ export abstract class ArcadeVehicle extends Vehicle {
     const t = this.body.translation();
     const v = this.body.linvel();
     return { position: new THREE.Vector3(t.x, t.y, t.z), velocity: new THREE.Vector3(v.x, v.y, v.z), heading: this.heading };
+  }
+
+  private readonly collider: RapierNS.Collider;
+
+  override setSolid(on: boolean): void {
+    this.collider.setCollisionGroups(groups(Group.VEHICLE, on ? Group.TERRAIN | Group.PROP | Group.VEHICLE : 0));
   }
 
   /** Subclass hook for special inputs (pedalling animation, carving, wheelies...). */

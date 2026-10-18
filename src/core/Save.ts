@@ -1,3 +1,4 @@
+import type { Difficulty } from '../config/race';
 import type { KeyBindings, PadBindings } from '../config/controls';
 import type { QualityPreset } from '../config/graphics';
 import type { MapId } from '../config/maps';
@@ -24,6 +25,8 @@ export interface SaveData {
     invertY: boolean;
     /** Degrees added to every camera FOV. */
     fovOffset: number;
+    /** Race bot difficulty. */
+    difficulty: Difficulty;
     keys: Partial<KeyBindings>;
     pad: Partial<PadBindings>;
   };
@@ -46,7 +49,7 @@ export interface SaveData {
 export function defaultSave(): SaveData {
   return {
     version: SAVE_VERSION,
-    settings: { quality: 'medium', masterVolume: 0.8, musicVolume: 0.6, sfxVolume: 0.8, invertY: false, fovOffset: 0, keys: {}, pad: {} },
+    settings: { quality: 'medium', masterVolume: 0.8, musicVolume: 0.6, sfxVolume: 0.8, invertY: false, fovOffset: 0, difficulty: 'normal', keys: {}, pad: {} },
     progress: {
       bestTimes: {},
       finishes: {},

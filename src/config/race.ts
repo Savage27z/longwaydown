@@ -59,7 +59,7 @@ export const BOT_PAINTS: [string, string][] = [
   ['#f4f8ff', '#ff4d6d'],
 ];
 
-/** Each bot's ground vehicle (what its wingsuit lands on), by map biome. */
+/** Each bot's starting ground vehicle (what its wingsuit lands on), by map biome. */
 export const BOT_VEHICLES: Record<BiomeId, VehicleId[]> = {
   alpine: ['mountainBike', 'motorbike', 'mountainBike', 'bicycle', 'car', 'mountainBike', 'motorbike'],
   snow: ['snowboard', 'skis', 'snowboard', 'mountainBike', 'skis', 'motorbike', 'snowboard'],
@@ -85,4 +85,50 @@ export const BOT_MISTAKES = {
   ghostSlowTime: [1.5, 3.5] as [number, number],
   ghostCrashRate: 0.006,
   ghostCrashTime: 6,
+};
+
+export type Difficulty = 'easy' | 'normal' | 'hard';
+export const DIFFICULTIES: Difficulty[] = ['easy', 'normal', 'hard'];
+
+/**
+ * Bot difficulty. `level` shifts every bot's skill; `mistakes` scales how often they slip,
+ * miss lips and fumble airs; `boost` scales how often they boost; `pace` scales ghost pace;
+ * `ease` is how hard they back off when ahead of the player.
+ */
+export const DIFFICULTY: Record<Difficulty, { label: string; level: number; mistakes: number; boost: number; pace: number; ease: number }> = {
+  easy: { label: 'Easy', level: -0.2, mistakes: 1.7, boost: 0.45, pace: 0.86, ease: 0.25 },
+  normal: { label: 'Normal', level: 0, mistakes: 1, boost: 1, pace: 1, ease: 0.14 },
+  hard: { label: 'Hard', level: 0.1, mistakes: 0.55, boost: 1.4, pace: 1.05, ease: 0.07 },
+};
+
+/** Ground vehicles each bot may switch between (its first is the one it starts on), by biome. */
+export const BOT_GARAGES: Record<BiomeId, VehicleId[][]> = {
+  alpine: [
+    ['mountainBike', 'motorbike'],
+    ['motorbike', 'car', 'mountainBike'],
+    ['mountainBike', 'bicycle'],
+    ['bicycle', 'mountainBike', 'roadster'],
+    ['car', 'motorbike'],
+    ['mountainBike', 'car'],
+    ['motorbike', 'mountainBike', 'bicycle'],
+  ],
+  snow: [
+    ['snowboard', 'skis', 'motorbike'],
+    ['skis', 'snowboard'],
+    ['snowboard', 'mountainBike'],
+    ['mountainBike', 'skis', 'motorbike'],
+    ['skis', 'car'],
+    ['motorbike', 'snowboard'],
+    ['snowboard', 'skis'],
+  ],
+};
+
+/** When bots change vehicle: chance at each checkpoint, and chance to pull the wingsuit on a big air. */
+export const BOT_SWITCH = {
+  atCheckpoint: 0.45,
+  wingsuitOnAir: 0.35,
+  /** Height above the ground (m) an air needs before the wingsuit comes out. */
+  wingsuitHeight: 10,
+  /** Minimum seconds between a bot's switches. */
+  cooldown: 20,
 };

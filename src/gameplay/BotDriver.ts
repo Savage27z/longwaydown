@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BOT_MISTAKES } from '../config/race';
+import { BOT_MISTAKES, BOT_SWITCH } from '../config/race';
 import type { VehicleId } from '../config/vehicles';
 import type { InputSource } from '../player/InputSource';
 import type { PlayerController } from '../player/PlayerController';
@@ -37,6 +37,11 @@ export class BotDriver implements InputSource {
   push = 1;
   /** Mistakes made so far (for tests / tuning). */
   mistakes = 0;
+  /** Difficulty: scales mistake odds and boost use. */
+  mistakeMul = 1;
+  boostMul = 1;
+  /** Seconds until this bot may switch vehicle again. */
+  switchCooldown = 0;
   private t = 0;
   private rng: Rng;
   private slip: Mistake | null = null;
@@ -67,19 +72,41 @@ export class BotDriver implements InputSource {
     if (!p) return;
     const dt = 1 / 60;
     this.t += dt;
+    this.switchCooldown = Math.max(0, this.switchCooldown - dt);
     const id = p.vehicle.id;
     if (id === 'onFoot') this.run(p, i);
     else if (id === 'wingsuit') this.fly(p, i);
     else {
       this.ride(p, i);
       if (!p.frozen) this.mistake(p, i, dt);
+      this.maybeWingsuit(p);
     }
+  }
+
+  /** Off a big air, sometimes pull the wingsuit and glide (it lands back on the ground vehicle). */
+  private airDecided = false;
+  private maybeWingsuit(p: PlayerController): void {
+    const tel = p.vehicle.telemetry;
+    if (tel.grounded) {
+      this.airDecided = false;
+      return;
+    }
+    if (this.airDecided || this.switchCooldown > 0 || this.fumble > 0 || p.heightAboveGround() < BOT_SWITCH.wingsuitHeight) return;
+    this.airDecided = true;
+    if (this.rng() < BOT_SWITCH.wingsuitOnAir * (0.6 + this.skill.level * 0.5) && p.switchTo('wingsuit', { hop: false })) this.switchCooldown = BOT_SWITCH.cooldown;
+  }
+
+  /** Roll for a vehicle change at a checkpoint: returns the vehicle to switch to, or null. */
+  pickSwitch(garage: VehicleId[], current: VehicleId): VehicleId | null {
+    if (this.switchCooldown > 0 || garage.length < 2 || this.rng() > BOT_SWITCH.atCheckpoint) return null;
+    const others = garage.filter((v) => v !== current);
+    return others[Math.floor(this.rng() * others.length)] ?? null;
   }
 
   /** Mistakes per second: everyone makes some, weaker riders far more. */
   private get rate(): number {
     const m = BOT_MISTAKES;
-    return (m.baseRate + (1 - this.skill.level) * m.skillRate) * (2 - this.push);
+    return (m.baseRate + (1 - this.skill.level) * m.skillRate) * (2 - this.push) * this.mistakeMul;
   }
 
   private mistake(p: PlayerController, i: VehicleInput, dt: number): void {
@@ -89,7 +116,7 @@ export class BotDriver implements InputSource {
     if (tel.grounded) this.wasGrounded = true;
     else if (this.wasGrounded && tel.airTime > 0.3 && p.heightAboveGround() > 1.5) {
       this.wasGrounded = false;
-      this.fumble = this.rng() < BOT_MISTAKES.fumbleChance * (1.2 - this.skill.level) ? 0.35 + this.rng() * 0.5 : 0;
+      this.fumble = this.rng() < BOT_MISTAKES.fumbleChance * (1.2 - this.skill.level) * this.mistakeMul ? 0.35 + this.rng() * 0.5 : 0;
       if (this.fumble > 0) this.mistakes++;
     }
     if (!tel.grounded && this.fumble > 0) {
@@ -164,7 +191,7 @@ export class BotDriver implements InputSource {
     if (f) {
       if (this.decidedJumpS !== f.s) {
         this.decidedJumpS = f.s;
-        this.skipJumpS = this.rng() < BOT_MISTAKES.missLipChance * (1.3 - sk.level) ? f.s : -1;
+        this.skipJumpS = this.rng() < BOT_MISTAKES.missLipChance * (1.3 - sk.level) * this.mistakeMul ? f.s : -1;
       }
       if (this.skipJumpS !== f.s) {
         lat = f.lateral;
@@ -188,7 +215,7 @@ export class BotDriver implements InputSource {
     // Skis and boards tuck on full throttle, which costs steering: stand up for tight bends.
     i.throttle = tight && GLIDERS.has(p.vehicle.id) ? 0 : 1;
     // Boost on some of the straights: how often depends on skill and the race rubber band.
-    const share = clamp(BOT_MISTAKES.boostBase + sk.level * BOT_MISTAKES.boostSkill + (this.push - 1) * 3, 0, 0.9);
+    const share = clamp((BOT_MISTAKES.boostBase + sk.level * BOT_MISTAKES.boostSkill) * this.boostMul + (this.push - 1) * 3, 0, 0.9);
     const rhythm = 0.5 + 0.25 * Math.sin(this.t * 0.41 + sk.seed * 7) + 0.25 * Math.sin(this.t * 0.17 + sk.seed * 3);
     i.boost = !sharp && rhythm < share && tel.grounded;
     // Brake down to the corner speed before a tight bend (not on boards and skis: without an

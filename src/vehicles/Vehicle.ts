@@ -142,6 +142,8 @@ export abstract class Vehicle {
   /** Render-interpolated orientation. */
   abstract renderQuaternion(out: THREE.Quaternion): THREE.Quaternion;
   abstract shiftOrigin(dx: number, dy: number, dz: number): void;
+  /** Solid to other riders (off for ghosts, which coast through everything). */
+  setSolid(_on: boolean): void {}
   abstract dispose(physics: PhysicsWorld): void;
   /** Called right after a mid-ride switch put this vehicle in place. */
   onSwitchedIn(_airborne: boolean): void {}

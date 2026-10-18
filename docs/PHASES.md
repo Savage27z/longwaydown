@@ -468,3 +468,17 @@ Goal: the mountain should look like a lively race venue, not primitives on an em
 - **Headless Green Ridge race** (test player on an MTB boosting half the time):
   - 7 of 8 riders finished within 57 s, with the test player 4th, 0.4 s behind 3rd.
   - Bots crash a few times per race, mostly landings.
+
+### Step E: difficulty, rider collisions, bots switching vehicles
+- **Difficulty** (`DIFFICULTY` in `config/race.ts`): Easy, Normal and Hard, picked under "Rivals" on the map select screen, saved, and shown on the results screen.
+  - Each level shifts bot skill, mistake odds, boost use, ghost pace and how much bots ease off when ahead.
+  - Headless Green Ridge, with the test player on an MTB boosting half the time:
+    - Easy: the test player came 3rd, behind two bots that had switched to cars. Easy was softened again afterwards.
+    - Hard: a tight field (699–783 s), with the test player 7th.
+- **Riders collide:** vehicle colliders now include the vehicle group, with a little restitution, so riders bump and shove.
+  - Ghosts are non-solid (`Vehicle.setSolid`) so they never hit anyone while coasting.
+  - Ground probes still ignore riders.
+- **Bots switch vehicles:** each bot has a garage of 2–3 ground vehicles (per biome, `BOT_GARAGES`).
+  - At each checkpoint there's a 45% chance it swaps to another one.
+  - Off big airs (10 m or more) it may pull the wingsuit and glide, landing back on its ground vehicle.
+  - Switches have a 20 s cooldown. Each headless race had about 16 mid-race switches beyond the landing swaps.

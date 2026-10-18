@@ -22,8 +22,9 @@ export interface RunResults {
   splits: number[];
   previousBest: number | null;
   newRecord: boolean;
-  /** Race standings at the finish (null for a solo run). */
+  /** Race standings at the finish (null for a solo run) and the bot difficulty. */
   standings: Standing[] | null;
+  difficulty: string | null;
 }
 
 export interface RunFrame {
@@ -48,6 +49,7 @@ export class Run {
   freeze = 0;
   /** Supplies race standings for the results (set by the play mode when racing). */
   standings: ((time: number) => Standing[]) | null = null;
+  difficultyLabel: (() => string) | null = null;
   readonly checkpoints: Checkpoints;
   private stateTime = 0;
   private countdownN = 0;
@@ -171,6 +173,7 @@ export class Run {
       previousBest: prev,
       newRecord: prev === null || this.total < prev,
       standings: this.standings?.(this.total) ?? null,
+      difficulty: this.difficultyLabel?.() ?? null,
     };
   }
 

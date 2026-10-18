@@ -204,6 +204,7 @@ function standingsTable(r: RunResults): string {
         `<div class="st-row${x.kind === 'local' ? ' me' : ''}"><b>${x.position}</b><i style="background:${x.color}"></i><span>${x.name}</span><span class="veh">${VEHICLE_ICONS[x.vehicle] ?? ''}</span><em>${x.estimated ? '~' : ''}${formatTime(x.time ?? 0)}</em></div>`,
     )
     .join('');
-  const place = me ? `<div class="menu-tag">You finished ${me.position}${['st', 'nd', 'rd'][me.position - 1] ?? 'th'} of ${r.standings.length}</div>` : '';
+  const diff = r.difficulty ? ` · ${r.difficulty}` : '';
+  const place = me ? `<div class="menu-tag">You finished ${me.position}${['st', 'nd', 'rd'][me.position - 1] ?? 'th'} of ${r.standings.length}${diff}</div>` : '';
   return `${place}<div class="standings">${rows}</div>`;
 }

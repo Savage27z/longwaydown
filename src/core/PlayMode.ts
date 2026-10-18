@@ -12,7 +12,7 @@ import { Puff } from '../fx/Puff';
 import { SpeedLines } from '../fx/SpeedLines';
 import { Race } from '../gameplay/Race';
 import { Run } from '../gameplay/Run';
-import { RACE } from '../config/race';
+import { DIFFICULTY, RACE } from '../config/race';
 import { loadRiderPack } from '../models/ModelLoader';
 import { loadNatureKit } from '../models/NatureKit';
 import { PlayerController } from '../player/PlayerController';
@@ -74,6 +74,7 @@ export class PlayMode implements GameMode {
     this.player.resetS = () => this.run.checkpoints.respawnS();
     this.race = new Race(game, world, this.player, this.spawnS, props.finishS, world.course.checkpoints);
     this.run.standings = (time) => this.race.results(time);
+    this.run.difficultyLabel = () => DIFFICULTY[this.race.difficulty].label;
     this.target = {
       position: new THREE.Vector3(),
       velocity: new THREE.Vector3(),
@@ -118,7 +119,7 @@ export class PlayMode implements GameMode {
     this.player.respawnAt(this.spawnS, 0, 'menu', this.race.playerLat);
     this.player.frozen = true;
     this.player.autoBrake = false;
-    this.race.reset();
+    this.race.reset(this.game.save.data.settings.difficulty);
     this.run.state = 'idle';
     const t = this.flyCam.tuning;
     t.autopilotSpeed = RUN.menuFlySpeed;
@@ -136,7 +137,7 @@ export class PlayMode implements GameMode {
     this.player.autoBrake = false;
     this.player.respawnAt(this.spawnS, 0, 'start', this.race.playerLat);
     this.player.frozen = true;
-    this.race.reset();
+    this.race.reset(this.game.save.data.settings.difficulty);
     this.run.begin(false);
     this.hud.setVisible(true);
     this.chase.snap();

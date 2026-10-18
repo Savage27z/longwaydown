@@ -164,6 +164,7 @@ export class PlayerController {
     } finally {
       this.attachVehicle(this.vehicle);
     }
+    if (this.ghost) this.vehicle.setSolid(false);
     this.motion.reset();
     if (opts.silent) return true;
     this.popT = 0;
@@ -208,6 +209,7 @@ export class PlayerController {
   /** Put the rider back on the course line at distance s (`lat` m to its right). */
   respawnAt(s: number, speed = RIDING.respawnSpeed, reason = 'respawn', lat = 0): void {
     this.endRagdoll();
+    if (this.ghost) this.vehicle.setSolid(true);
     this.ghost = false;
     const c = this.world.course;
     const sClamped = Math.max(5, Math.min(c.length - 5, s));
@@ -241,6 +243,7 @@ export class PlayerController {
     // A ghost rides its ground vehicle: runners past the plateau and wingsuits land straight away.
     if (this.vehicle.id === 'wingsuit' || (this.vehicle.id === 'onFoot' && !this.onPlateau(r.s))) this.switchTo(this.landingVehicle(), { silent: true });
     this.ghost = true;
+    this.vehicle.setSolid(false);
     this.ghostS = r.s;
     this.ghostLat = Math.max(-4, Math.min(4, r.lat));
     this.ghostSpeed = speed;
@@ -250,6 +253,7 @@ export class PlayerController {
   exitGhost(): void {
     if (!this.ghost) return;
     this.ghost = false;
+    this.vehicle.setSolid(true);
     this.vehicle.place(this.spawnState(this.ghostS, this.ghostSpeed, this.ghostLat, 0.12));
     this.motion.reset();
     this.stuckTimer = 0;
