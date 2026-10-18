@@ -598,3 +598,8 @@ New in this phase:
   - The press that starts a run doesn't skip the intro.
 - **Y throws** (D-pad up does too). Respawn moved to D-pad down; Restart stays in the pause menu.
 - The Controls screen lists keyboard and controller side by side, and in-run hints show the buttons of the device in use.
+
+### All vehicles free
+- `VEHICLE_UNLOCKS` is empty, so every vehicle is free from the start: in the vehicle wheel, Customize paint and the stations.
+- Outfits and shades still unlock by milestones and tokens.
+- To lock a vehicle again, add a rule to `config/progression.ts`.

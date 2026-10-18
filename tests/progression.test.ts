@@ -11,13 +11,10 @@ function fakeSave() {
 }
 
 describe('Progression', () => {
-  it('starts with only the bicycle and wingsuit', () => {
+  it('has every vehicle free; some cosmetics start locked', () => {
     const { save } = fakeSave();
     const p = new Progression(save);
-    expect(p.vehicleUnlocked('bicycle')).toBe(true);
-    expect(p.vehicleUnlocked('wingsuit')).toBe(true);
-    expect(p.vehicleUnlocked('mountainBike')).toBe(false);
-    expect(p.vehicleUnlocked('flyingCar')).toBe(false);
+    for (const id of ['bicycle', 'mountainBike', 'motorbike', 'car', 'roadster', 'flyingCar', 'snowboard', 'skis', 'wingsuit'] as const) expect(p.vehicleUnlocked(id)).toBe(true);
     expect(p.outfitUnlocked('Swat')).toBe(false);
     expect(p.gogglesUnlocked('goggles')).toBe(true);
     expect(p.gogglesUnlocked('shades')).toBe(false);
@@ -29,13 +26,12 @@ describe('Progression', () => {
     data.progress.finishes.snowPeak = 1;
     data.progress.bestTimes.snowPeak = { time: 700, splits: [], date: '' };
     const got = p.collectNew().map((u) => u.id);
-    expect(got).toEqual(expect.arrayContaining(['mountainBike', 'snowboard', 'skis', 'roadster', 'Swat']));
-    expect(got).not.toContain('flyingCar');
+    expect(got).toEqual(['Swat']);
     expect(writes()).toBe(1);
     expect(p.collectNew()).toEqual([]);
     // Stored: still unlocked even if the stats that earned it were reset.
     data.progress.finishes = {};
-    expect(p.vehicleUnlocked('mountainBike')).toBe(true);
+    expect(p.outfitUnlocked('Swat')).toBe(true);
   });
 
   it('tokens unlock cosmetics, and unlock-all opens everything', () => {
@@ -44,7 +40,6 @@ describe('Progression', () => {
     data.progress.collectibles = ['snowPeak:0', 'snowPeak:1'];
     expect(p.collectNew().map((u) => u.id)).toEqual(['shades']);
     data.settings.unlockAll = true;
-    expect(p.vehicleUnlocked('car')).toBe(true);
     expect(p.outfitUnlocked('King')).toBe(true);
   });
 });

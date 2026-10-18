@@ -25,16 +25,11 @@ export interface UnlockRule {
 const finished = (m: MapId) => (p: ProgressView) => (p.finishes[m] ?? 0) > 0;
 const collected = (n: number) => (p: ProgressView) => p.collectibles.length >= n;
 
-/** Vehicles: the bicycle is always yours; everything else unlocks by milestones. */
-export const VEHICLE_UNLOCKS: Partial<Record<VehicleId, UnlockRule>> = {
-  mountainBike: { how: 'Finish Snow Peak', test: finished('snowPeak') },
-  snowboard: { how: 'Finish Snow Peak', test: finished('snowPeak') },
-  skis: { how: 'Finish Snow Peak', test: finished('snowPeak') },
-  motorbike: { how: 'Ride 40 km in total', test: (p) => p.totalDistance >= 40000 },
-  car: { how: 'Score 25,000 trick points in total', test: (p) => p.totalTrickScore >= 25000 },
-  roadster: { how: 'Finish Snow Peak in under 12:00', test: (p) => (p.bestTimes.snowPeak?.time ?? Infinity) < 720 },
-  flyingCar: { how: 'Finish both mountains', test: (p) => finished('snowPeak')(p) && finished('greenRidge')(p) },
-};
+/**
+ * Vehicles: all free from the start. Add a rule here to lock one behind a milestone, e.g.
+ * `car: { how: 'Score 25,000 trick points in total', test: (p) => p.totalTrickScore >= 25000 }`.
+ */
+export const VEHICLE_UNLOCKS: Partial<Record<VehicleId, UnlockRule>> = {};
 
 /** Outfits (each part: helmet/head, top, pants, shoes) that start locked. */
 export const OUTFIT_UNLOCKS: Partial<Record<OutfitId, UnlockRule>> = {
