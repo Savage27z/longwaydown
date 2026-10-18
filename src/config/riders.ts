@@ -35,6 +35,24 @@ export interface RiderLook {
   legs: OutfitId;
   feet: OutfitId;
   backpack: boolean;
+  /** Colours per slot (unset = the outfit's own colours). */
+  colors?: RiderColors;
+  /** Index into SKIN_TONES (unset = the pack's own). */
+  skin?: number;
+  goggles?: 'none' | 'goggles' | 'shades';
+  gloves?: boolean;
+  bodyType?: 'slim' | 'regular' | 'strong';
+}
+
+export interface RiderColors {
+  helmet?: string;
+  top?: string;
+  top2?: string;
+  pants?: string;
+  shoes?: string;
+  gloves?: string;
+  hair?: string;
+  lens?: string;
 }
 
 export const DEFAULT_LOOK: RiderLook = { head: 'SpaceSuit', body: 'SpaceSuit', legs: 'SpaceSuit', feet: 'SpaceSuit', backpack: false };

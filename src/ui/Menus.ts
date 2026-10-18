@@ -2,7 +2,9 @@ import { MAP_ORDER, MAPS, type MapId } from '../config/maps';
 import { RIDER_ASSET } from '../config/riders';
 import type { Input } from '../core/Input';
 import type { Save } from '../core/Save';
+import type { Progression } from '../gameplay/Progression';
 import type { RunResults } from '../gameplay/Run';
+import { customizeScreen } from './CustomizeScreen';
 import { formatTime } from '../utils/math';
 import { VEHICLE_ICONS } from './icons';
 import { mapSelectScreen } from './MapSelect';
@@ -14,9 +16,11 @@ export interface MenuActions extends SettingsHooks {
   restart(): void;
   respawn(): void;
   quitToMenu(): void;
+  /** The rider's look or paint changed in Customize. */
+  lookChanged(): void;
 }
 
-export type ScreenName = 'main' | 'maps' | 'settings' | 'credits' | 'pause' | 'results' | 'controls';
+export type ScreenName = 'main' | 'maps' | 'settings' | 'credits' | 'pause' | 'results' | 'controls' | 'customize';
 
 function button(label: string, onClick: () => void, cls = ''): HTMLButtonElement {
   const b = document.createElement('button');
@@ -31,10 +35,13 @@ export class Menus {
   readonly root = document.createElement('div');
   current: ScreenName | null = null;
   private returnTo: ScreenName = 'main';
+  /** Tear-down for the current screen (the customize preview owns a renderer). */
+  private cleanup: (() => void) | null = null;
 
   constructor(
     parent: HTMLElement,
     private readonly save: Save,
+    private readonly progression: Progression,
     private readonly input: Input,
     private readonly actions: MenuActions,
   ) {
@@ -47,12 +54,19 @@ export class Menus {
   }
 
   hide(): void {
+    this.runCleanup();
     this.current = null;
     this.root.classList.add('hidden');
     this.root.innerHTML = '';
   }
 
+  private runCleanup(): void {
+    this.cleanup?.();
+    this.cleanup = null;
+  }
+
   show(name: ScreenName, results?: RunResults): void {
+    this.runCleanup();
     this.current = name;
     this.root.innerHTML = '';
     this.root.classList.remove('hidden');
@@ -80,6 +94,12 @@ export class Menus {
       case 'controls':
         el = this.controlsScreen();
         break;
+      case 'customize': {
+        const c = customizeScreen(this.save, this.progression, () => this.actions.lookChanged(), () => this.show('main'));
+        el = c.el;
+        this.cleanup = c.dispose;
+        break;
+      }
     }
     this.root.appendChild(el);
     (el.querySelector('.btn.primary, .btn') as HTMLElement | null)?.focus({ preventScroll: true });
@@ -93,12 +113,11 @@ export class Menus {
     this.returnTo = 'main';
     b.append(
       button('Play', () => this.show('maps'), 'primary'),
-      button('Customize <span class="soon">SOON</span>', () => undefined),
+      button('Customize', () => this.show('customize')),
       button('Settings', () => this.show('settings')),
       button('Controls', () => this.show('controls')),
       button('Credits', () => this.show('credits')),
     );
-    (b.children[1] as HTMLButtonElement).disabled = true;
     return p;
   }
 
@@ -131,6 +150,7 @@ export class Menus {
       <div class="hud-sub">${
         delta === null ? 'First finish on this mountain!' : `<span class="${delta <= 0 ? 'good' : 'bad'}">${delta <= 0 ? '−' : '+'}${formatTime(Math.abs(delta))} vs best ${formatTime(prev!)}</span>`
       }</div>
+      ${unlocksBlock(r)}
       ${standingsTable(r)}
       <div class="results-grid">
         ${stat('Distance', `${(r.distance / 1000).toFixed(2)} km`)}
@@ -211,4 +231,11 @@ function standingsTable(r: RunResults): string {
   const diff = r.difficulty ? ` · ${r.difficulty}` : '';
   const place = me ? `<div class="menu-tag">You finished ${me.position}${['st', 'nd', 'rd'][me.position - 1] ?? 'th'} of ${r.standings.length}${diff}</div>` : '';
   return `${place}<div class="standings">${rows}</div>`;
+}
+
+/** "Unlocked" chips on the results screen. */
+function unlocksBlock(r: RunResults): string {
+  if (!r.unlocks?.length) return '';
+  const label: Record<string, string> = { map: 'New mountain', vehicle: 'New vehicle', outfit: 'New outfit', goggles: 'New eyewear' };
+  return `<div class="unlocks">${r.unlocks.map((u) => `<div class="unlock"><span>${label[u.kind] ?? 'Unlocked'}</span>${u.name}</div>`).join('')}</div>`;
 }

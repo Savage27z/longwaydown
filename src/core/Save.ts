@@ -27,6 +27,8 @@ export interface SaveData {
     fovOffset: number;
     /** Race bot difficulty. */
     difficulty: Difficulty;
+    /** Dev / testing: every vehicle, map and cosmetic unlocked. */
+    unlockAll: boolean;
     keys: Partial<KeyBindings>;
     pad: Partial<PadBindings>;
   };
@@ -43,13 +45,15 @@ export interface SaveData {
     collectibles: string[];
   };
   look: RiderLook;
+  /** Vehicle paint per vehicle (unset = the vehicle's default). */
+  paint: Partial<Record<VehicleId, { primary: string; secondary: string }>>;
   firstPlayDone: boolean;
 }
 
 export function defaultSave(): SaveData {
   return {
     version: SAVE_VERSION,
-    settings: { quality: 'medium', masterVolume: 0.8, musicVolume: 0.6, sfxVolume: 0.8, invertY: false, fovOffset: 0, difficulty: 'normal', keys: {}, pad: {} },
+    settings: { quality: 'medium', masterVolume: 0.8, musicVolume: 0.6, sfxVolume: 0.8, invertY: false, fovOffset: 0, difficulty: 'normal', unlockAll: false, keys: {}, pad: {} },
     progress: {
       bestTimes: {},
       finishes: {},
@@ -63,6 +67,7 @@ export function defaultSave(): SaveData {
       collectibles: [],
     },
     look: { ...DEFAULT_LOOK },
+    paint: {},
     firstPlayDone: false,
   };
 }
@@ -122,7 +127,13 @@ export class Save {
   }
 
   isMapUnlocked(id: MapId): boolean {
-    return this.data.progress.unlockedMaps.includes(id) || unlockAllEnabled();
+    return this.data.progress.unlockedMaps.includes(id) || unlockAllEnabled() || this.data.settings.unlockAll;
+  }
+
+  /** The player's paint for a vehicle as model options (unset colours = defaults). */
+  paintFor(id: VehicleId): { primary?: string; secondary?: string } | undefined {
+    const p = this.data.paint[id];
+    return p ? { primary: p.primary || undefined, secondary: p.secondary || undefined } : undefined;
   }
 }
 

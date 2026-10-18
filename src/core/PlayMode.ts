@@ -27,6 +27,10 @@ import { vehicleSlots } from '../vehicles/slots';
 import { mapBiome } from '../vehicles/VehicleSwitcher';
 import { World } from '../world/World';
 import { Pickups, type PickupRider } from '../world/Pickups';
+import { Secrets } from '../world/Secrets';
+import { COLLECTIBLES } from '../config/progression';
+import { MAP_ORDER } from '../config/maps';
+import { VEHICLES } from '../config/vehicles';
 import { Throwables, type ThrowRider } from '../gameplay/Throwables';
 import { THROW } from '../config/stunts';
 import { events } from './Events';
@@ -44,6 +48,9 @@ export class PlayMode implements GameMode {
   readonly hud: HUD;
   private tags: NameTags;
   private pickups: Pickups;
+  private secrets: Secrets;
+  /** Locked vehicles lent by a station for this run. */
+  private borrowed = new Set<VehicleId>();
   private throwables: Throwables;
   private throwRiders: ThrowRider[] = [];
   private botThrowWait = new Map<string, number>();
@@ -72,7 +79,7 @@ export class PlayMode implements GameMode {
   ) {
     const props = world.courseProps;
     this.spawnS = props.startS + RUN.spawnOffset;
-    this.player = new PlayerController(game, world, 'onFoot', this.spawnS);
+    this.player = new PlayerController(game, world, 'onFoot', this.spawnS, { look: game.save.data.look, paint: (id) => game.save.paintFor(id) });
     this.chase = new ChaseCamera(game.renderer.camera, game.input);
     this.flyCam = new FlyCam(game.renderer.camera, game.input, world);
     this.toast = new Toast(game.ui);
@@ -90,6 +97,9 @@ export class PlayMode implements GameMode {
     this.run.standings = (time) => this.race.results(time);
     this.run.difficultyLabel = () => DIFFICULTY[this.race.difficulty].label;
     this.pickups = new Pickups(world, game.renderer.worldRoot);
+    this.secrets = new Secrets(world, game.renderer.worldRoot, (key) => game.save.data.progress.collectibles.includes(key));
+    this.secrets.onToken = (key) => this.foundToken(key);
+    this.secrets.onStation = (id) => this.station(id);
     this.pickupRiders = this.race.entries.map((e) => ({ id: e.id, rider: e.rider, local: e.kind === 'local' }));
     this.throwables = new Throwables(game.renderer.scene);
     this.throwRiders = this.race.entries.map((e) => ({ id: e.id, name: e.name, rider: e.rider, local: e.kind === 'local' }));
@@ -161,12 +171,45 @@ export class PlayMode implements GameMode {
     this.player.frozen = true;
     this.race.reset(this.game.save.data.settings.difficulty);
     this.pickups.reset();
+    this.secrets.reset();
+    this.borrowed.clear();
+    // Every run starts on the bicycle (the wingsuit glide lands on it); the wheel offers what you've unlocked.
+    this.player.lastGround = 'bicycle';
     this.throwables.clear();
     this.run.begin(false);
     this.hud.setVisible(true);
     this.chase.snap();
     this.slowMo = 0;
     this.game.loop.timeScale = 1;
+  }
+
+  /** The look or paint changed in Customize: dress the parked rider again. */
+  applyLook(): void {
+    this.player.setLook(this.game.save.data.look);
+    this.player.repaint();
+  }
+
+  private canRide(id: VehicleId): boolean {
+    return this.game.progression.vehicleUnlocked(id) || this.borrowed.has(id);
+  }
+
+  private foundToken(key: string): void {
+    const p = this.game.save.data.progress;
+    if (!p.collectibles.includes(key)) p.collectibles.push(key);
+    this.game.save.write();
+    const total = COLLECTIBLES.perMap * MAP_ORDER.length;
+    const unlocks = this.game.progression.collectNew();
+    events.emit('progress:token', { key, count: p.collectibles.length });
+    this.toast.show(`Hidden token found!  ${p.collectibles.length}/${total}${unlocks.length ? `  ·  Unlocked: ${unlocks.map((u) => u.name).join(', ')}` : ''}`, 4200);
+  }
+
+  private station(id: VehicleId): void {
+    const locked = !this.canRide(id);
+    if (locked) this.borrowed.add(id);
+    const switched = this.player.vehicle.id !== id && this.player.state === 'riding' && this.player.switchTo(id);
+    if (switched) this.switchCooldown = SWITCH.cooldown;
+    const name = VEHICLES[id].name;
+    this.toast.show(locked ? `Vehicle station: ${name} borrowed for this run!` : `Vehicle station: ${name}`, 3600);
   }
 
   respawnAtCheckpoint(): void {
@@ -232,6 +275,7 @@ export class PlayMode implements GameMode {
     this.updateThrows(simDt, run.state === 'running');
     this.updateSpray(simDt);
     this.pickups.update(simDt, this.world.origin.toGlobal(this.game.renderer.camera.position, this.camGlobal), run.state === 'running' ? this.pickupRiders : []);
+    this.secrets.update(simDt, this.camGlobal, run.state === 'running' ? this.player : null);
 
     this.player.focusLocal(this.focus);
     this.world.origin.toGlobal(this.focus, this.global);
@@ -347,7 +391,7 @@ export class PlayMode implements GameMode {
       this.wheel.update(Math.hypot(r.x, r.y) > SWITCH.stickDeadzone ? r : l);
       if (!input.isDown('vehicleWheel')) this.closeWheel(this.wheel.close(), true);
     } else if (canSwitch && input.framePressed('vehicleWheel') && this.switchCooldown <= 0) {
-      const slots = vehicleSlots(mapBiome(this.world), this.player.heightAboveGround());
+      const slots = vehicleSlots(mapBiome(this.world), this.player.heightAboveGround(), (id) => this.canRide(id));
       this.wheel.open(this.player.vehicle.id, slots, keyLabel(input.keys.vehicleWheel[0] ?? 'KeyQ'));
       this.game.loop.timeScale = SWITCH.wheelTimeScale;
       events.emit('wheel:toggle', { open: true });
@@ -458,6 +502,7 @@ export class PlayMode implements GameMode {
     this.run.dispose();
     this.race.dispose();
     this.pickups.dispose();
+    this.secrets.dispose();
     this.spray.dispose();
     this.throwables.dispose();
     this.tags.dispose();

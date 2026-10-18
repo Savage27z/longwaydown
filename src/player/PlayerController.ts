@@ -42,7 +42,8 @@ export interface RiderOptions {
   local?: boolean;
   look?: RiderLook;
   /** Paint for every vehicle this rider spawns (vehicle defaults when unset). */
-  paint?: ModelOptions;
+  /** Paint for the vehicles this rider spawns: one for all, or per vehicle (unset = vehicle default). */
+  paint?: ModelOptions | ((id: VehicleId) => ModelOptions | undefined);
 }
 
 const _v = new THREE.Vector3();
@@ -57,10 +58,10 @@ const _q = new THREE.Quaternion();
  */
 export class PlayerController {
   vehicle: Vehicle;
-  readonly character: Character;
+  character: Character;
   readonly local: boolean;
   readonly source: InputSource;
-  readonly paint: ModelOptions | undefined;
+  private readonly paintOpt: RiderOptions['paint'];
   /** Boost meter, trick combo, buffs, near-misses. */
   readonly perks: RiderPerks;
   onEvent: (<K extends RiderEvent>(type: K, payload: GameEvents[K]) => void) | null = null;
@@ -72,7 +73,7 @@ export class PlayerController {
   private ghostLat = 0;
   /** Body motion layered on top of the vehicle's pose. */
   readonly motion = new RiderDynamics();
-  readonly membrane: WingsuitMembrane;
+  membrane: WingsuitMembrane;
   /** Where a wingsuit landing hands over to: the last ground vehicle ridden. */
   lastGround: VehicleId = DEFAULT_GROUND_VEHICLE;
   readonly progress: ProgressTracker;
@@ -116,13 +117,13 @@ export class PlayerController {
   ) {
     this.local = opts.local ?? true;
     this.source = opts.source ?? new LocalInput(game.input);
-    this.paint = opts.paint;
+    this.paintOpt = opts.paint;
     this.character = new Character(opts.look);
     this.perks = new RiderPerks((type, payload) => this.emit(type, payload));
     this.ctx = { physics: game.physics, world, mods: defaultMods() };
     this.progress = new ProgressTracker(world.query);
     this.progress.reset(spawnS);
-    this.vehicle = createVehicle(vehicleId, game.physics, this.spawnState(spawnS, 0), this.paint);
+    this.vehicle = createVehicle(vehicleId, game.physics, this.spawnState(spawnS, 0), this.paintFor(vehicleId));
     this.attachVehicle(this.vehicle);
     this.membrane = new WingsuitMembrane(this.character.binding);
     this.offShift = events.on('origin:shift', ({ dx, dy, dz }) => {
@@ -139,6 +140,34 @@ export class PlayerController {
     pos.y += this.vehicle ? this.vehicle.stats.rideHeight + lift : 1.1;
     const vel = new THREE.Vector3(Math.sin(heading), 0, Math.cos(heading)).multiplyScalar(speed);
     return { position: pos, velocity: vel, heading };
+  }
+
+  paintFor(id: VehicleId): ModelOptions | undefined {
+    const p = this.paintOpt;
+    return typeof p === 'function' ? p(id) : p;
+  }
+
+  /** New outfit / style: rebuild the character (between runs). */
+  setLook(look: RiderLook): void {
+    this.endRagdoll();
+    this.membrane.dispose();
+    this.character.root.removeFromParent();
+    this.character.dispose();
+    this.character = new Character(look);
+    this.membrane = new WingsuitMembrane(this.character.binding);
+    this.vehicle.mount.add(this.character.root);
+  }
+
+  /** Repaint the current vehicle (between runs): rebuilt in place with the new paint. */
+  repaint(): void {
+    if (this.state !== 'riding') return;
+    const id = this.vehicle.id;
+    this.character.root.removeFromParent();
+    try {
+      this.vehicle = swapVehicle(this.vehicle, id, this.game.physics, this.world, this.paintFor(id));
+    } finally {
+      this.attachVehicle(this.vehicle);
+    }
   }
 
   private emit<K extends RiderEvent>(type: K, payload: GameEvents[K]): void {
@@ -173,7 +202,7 @@ export class PlayerController {
     // Detach the rider first: disposing the old vehicle disposes everything under its model.
     this.character.root.removeFromParent();
     try {
-      this.vehicle = swapVehicle(this.vehicle, id, this.game.physics, this.world, this.paint);
+      this.vehicle = swapVehicle(this.vehicle, id, this.game.physics, this.world, this.paintFor(id));
     } finally {
       this.attachVehicle(this.vehicle);
     }
@@ -198,7 +227,7 @@ export class PlayerController {
   /** The ground vehicle a wingsuit lands on (respects snow-only rules). */
   landingVehicle(): VehicleId {
     const id = this.lastGround;
-    return VEHICLES[id].snowOnly && MAPS[this.world.mapId].biome !== 'snow' ? DEFAULT_GROUND_VEHICLE : id;
+    return VEHICLES[id].snowOnly && MAPS[this.world.mapId].biome !== 'snow' ? (this.local ? 'bicycle' : DEFAULT_GROUND_VEHICLE) : id;
   }
 
   /** Race start: the summit plateau (before the edge) is walked, not ridden. */

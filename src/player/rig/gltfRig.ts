@@ -3,6 +3,7 @@ import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { partMeshName, type RiderLook } from '../../config/riders';
 import type { BoneAxes } from '../../utils/ik';
 import type { Limb, RigBinding, TorsoBone } from './RigBinding';
+import { dress } from './dress';
 
 const FORWARD = new THREE.Vector3(0, 0, 1);
 
@@ -147,6 +148,19 @@ export function gltfRig(source: THREE.Object3D, look: RiderLook): RigBinding | n
   const flailNames = ['Abdomen', 'Chest', 'Head', 'UpperArm.L', 'UpperArm.R', 'LowerArm.L', 'LowerArm.R', 'UpperLeg.L', 'UpperLeg.R', 'LowerLeg.L', 'LowerLeg.R'];
   const flail = flailNames.map((n, i) => ({ bone: bones[n]!, rest: bones[n]!.quaternion.clone(), amp: i < 3 ? 0.35 : 0.9 }));
   const headPart = parts.get(partMeshName(look.head, 'Head'));
+  // Style (colours, skin, goggles, gloves, body type) on top of the outfit parts.
+  const extras = dress(
+    root,
+    {
+      Head: headPart,
+      Body: parts.get(partMeshName(look.body, 'Body')),
+      Legs: parts.get(partMeshName(look.legs, 'Legs')),
+      Feet: parts.get(partMeshName(look.feet, 'Feet')),
+    },
+    bones,
+    look,
+  );
+  const goggles = extras.filter((o) => o.parent === bones.Head);
 
   return {
     root,
@@ -158,12 +172,19 @@ export function gltfRig(source: THREE.Object3D, look: RiderLook): RigBinding | n
     legL: limb('UpperLeg.L', 'LowerLeg.L', 'Foot.L', 1, 'free', 1),
     legR: limb('UpperLeg.R', 'LowerLeg.R', 'Foot.R', 1, 'free', -1),
     head: bones.Head!,
-    headParts: headPart ? [headPart] : [],
+    headParts: [...(headPart ? [headPart] : []), ...goggles],
     materials,
     flail,
     dispose() {
       root.removeFromParent();
       for (const m of materials) m.dispose();
+      for (const o of extras)
+        o.traverse((x) => {
+          const mesh = x as THREE.Mesh;
+          if (!mesh.isMesh) return;
+          mesh.geometry.dispose();
+          (mesh.material as THREE.Material).dispose();
+        });
       skeleton.dispose();
       // Geometry is shared with the cached pack and stays alive.
     },

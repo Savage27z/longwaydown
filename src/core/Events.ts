@@ -75,6 +75,8 @@ export interface GameEvents {
   'rider:pickup': { kind: PickupKind };
   /** A throw landed: names of thrower and target, whether you were involved, and if a shield blocked it. */
   'rider:hit': { from: string; to: string; byYou: boolean; onYou: boolean; blocked: boolean };
+  /** A hidden token was found (count = tokens found in total). */
+  'progress:token': { key: string; count: number };
 }
 
 export const events = new EventBus<GameEvents>();

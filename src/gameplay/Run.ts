@@ -10,6 +10,8 @@ export type RunState = 'idle' | 'intro' | 'countdown' | 'running' | 'finished';
 
 export interface RunResults {
   mapId: MapId;
+  /** Unlocked by this finish (filled in when the finish is recorded). */
+  unlocks?: { kind: string; name: string }[];
   /** Final time including penalties (s). */
   time: number;
   penalties: number;

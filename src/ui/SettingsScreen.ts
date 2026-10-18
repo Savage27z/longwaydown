@@ -104,6 +104,17 @@ export function settingsScreen(save: Save, input: Input, hooks: SettingsHooks, o
   });
   row('Invert Y', inv);
 
+  section('Progression');
+  const all = document.createElement('input');
+  all.type = 'checkbox';
+  all.className = 'toggle';
+  all.checked = s.unlockAll;
+  all.addEventListener('change', () => {
+    s.unlockAll = all.checked;
+    commit();
+  });
+  row('Unlock everything (testing)', all);
+
   section('Controls — click to rebind (Esc cancels)');
   const list = document.createElement('div');
   list.className = 'bind-list';

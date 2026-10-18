@@ -1,6 +1,7 @@
 import { GRAPHICS_PRESETS, type GraphicsSettings, type QualityPreset } from '../config/graphics';
 import { RUN } from '../config/gameplay';
-import { MAP_ORDER, type MapId } from '../config/maps';
+import { MAP_ORDER, MAPS, type MapId } from '../config/maps';
+import { Progression } from '../gameplay/Progression';
 import type { RunResults } from '../gameplay/Run';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { Renderer } from '../render/Renderer';
@@ -39,6 +40,7 @@ export class Game {
   readonly input: Input;
   readonly loop: Loop;
   readonly save = new Save();
+  readonly progression = new Progression(this.save);
   readonly menus: Menus;
   quality: QualityPreset;
   state: StateId = 'loading';
@@ -66,8 +68,9 @@ export class Game {
       update: (realDt, simDt, alpha) => this.update(realDt, simDt, alpha),
       render: () => this.renderer.render(),
     });
-    this.menus = new Menus(ui, this.save, this.input, {
+    this.menus = new Menus(ui, this.save, this.progression, this.input, {
       playMap: (id) => void this.playMap(id),
+      lookChanged: () => this.play?.applyLook(),
       resume: () => this.resume(),
       restart: () => this.startRun(),
       respawn: () => {
@@ -190,8 +193,14 @@ export class Game {
     if (r.newRecord) p.bestTimes[r.mapId] = { time: r.time, splits: r.splits, date: new Date().toISOString() };
     // Finishing a map unlocks the next one.
     const next = MAP_ORDER[MAP_ORDER.indexOf(r.mapId) + 1];
-    if (next && !p.unlockedMaps.includes(next)) p.unlockedMaps.push(next);
+    const unlocks: { kind: string; name: string }[] = [];
+    if (next && !p.unlockedMaps.includes(next)) {
+      p.unlockedMaps.push(next);
+      unlocks.push({ kind: 'map', name: MAPS[next].name });
+    }
     this.save.write();
+    unlocks.push(...this.progression.collectNew());
+    r.unlocks = unlocks;
   }
 
   setState(next: StateId): void {

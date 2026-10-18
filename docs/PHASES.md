@@ -560,3 +560,32 @@ New in this phase:
   - Fences only break for bridges, fords, ramps, tunnels and arches.
   - Round hay bale groups sit in the fields, and red barns with white trim face the trail.
   - Everything has colliders.
+
+## Phase 8 — Customization and progression ✅
+- **Customize screen** (`ui/CustomizeScreen.ts`, main menu → Customize):
+  - A live, rotating 3D preview (drag to turn) of your rider, or of the vehicle on the paint tab.
+  - Rider slots: helmet/head, goggles (none / ski goggles / shades) and lens tint, top with two colours, pants, shoes, gloves, backpack, skin tone, hair colour and body type (slim / regular / strong).
+  - Vehicle paint: a primary and secondary colour per vehicle.
+  - Every colour slot has 14 swatches, a default, and a custom picker.
+  - Locked items show a lock and how to unlock them.
+  - Randomize uses unlocked items only.
+  - Everything saves as you change it (`save.look`, `save.paint`).
+- **Rig dressing** (`player/rig/dress.ts`): recolours garments by slot, sets skin tone, hair and lens, scales the torso for body type, and adds goggles/shades and gloves.
+- **Unlock rules** live in one file, `config/progression.ts`; `gameplay/Progression.ts` checks them.
+  - Vehicles: the bicycle is free.
+    - MTB, snowboard and skis: finish Snow Peak.
+    - Motorbike: 40 km total.
+    - Buggy: 25k trick points.
+    - Roadster: Snow Peak under 12:00.
+    - Hover car: both mountains.
+  - Outfits and shades unlock by finishes, trick points and hidden tokens.
+  - Earned unlocks are stored, so later rule changes never take them away.
+  - Green Ridge still unlocks after Snow Peak.
+- **Every run lands on the bicycle.** The vehicle wheel only offers what you've unlocked.
+- **Vehicle stations** at 22/48/74% of each course (`world/Secrets.ts`): orange gates across the trail.
+  - Riding through switches you to that vehicle.
+  - A locked vehicle is lent for the rest of the run.
+- **Hidden tokens:** 5 per map, 22–40 m off the trail, gold gems with a light beam. Each is found once ever, with a toast showing the count and any unlocks.
+- **Unlock pop-ups:** the results screen shows new mountains, vehicles, outfits and eyewear.
+- **Testing:** Settings → Progression → "Unlock everything", or `?unlockall` in the URL.
+- **Tests:** `tests/progression.test.ts` (3).
