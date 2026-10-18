@@ -674,3 +674,6 @@ Peer-to-peer over WebRTC (`peerjs`). The free public PeerJS broker only does the
   - **Joiner:** tries a direct link for 6 s, then switches to the relay.
   - **Relay links:** the joiner sends pings, the host drops anyone silent for 15 s, and both sides say goodbye on leaving.
   - `?relay` in the URL forces the relay path.
+- **Hosting no longer needs the PeerJS broker:**
+  - If the broker is unreachable (8 s timeout), the room opens on the relay alone; `?relay` forces that for the host too.
+  - Joiners treat "no such peer" on the direct path as "try the relay". A wrong code still errors after about 12 s.

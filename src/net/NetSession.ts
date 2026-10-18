@@ -18,14 +18,18 @@ function randomId(prefix: string): string {
   return prefix + Math.random().toString(36).slice(2, 10);
 }
 
+/** Register with the PeerJS broker (gives up after a few seconds if it doesn't answer). */
 function openPeer(id?: string): Promise<Peer> {
   return new Promise((resolve, reject) => {
     const peer = id ? new Peer(id) : new Peer();
+    const timer = window.setTimeout(() => fail(Object.assign(new Error('PeerJS broker timeout'), { type: 'timeout' })), 8000);
     const fail = (e: Error) => {
+      window.clearTimeout(timer);
       peer.destroy();
       reject(e);
     };
     peer.once('open', () => {
+      window.clearTimeout(timer);
       peer.off('error', fail);
       resolve(peer);
     });
@@ -116,24 +120,28 @@ export class NetSession {
   /** Open a room (direct links + the relay). */
   static async host(me: Me): Promise<NetSession> {
     let peer: Peer | null = null;
-    let code = '';
-    for (let tries = 0; !peer && tries < 4; tries++) {
+    let code = makeCode();
+    // `?relay` in the URL hosts on the relay only (testing, or networks known to block WebRTC).
+    let brokerDown = new URLSearchParams(location.search).has('relay');
+    for (let tries = 0; !peer && !brokerDown && tries < 4; tries++) {
       code = makeCode();
       try {
         peer = await openPeer(NET.prefix + code);
       } catch (e) {
-        if ((e as { type?: string }).type !== 'unavailable-id') throw e;
+        // A taken code: try another. Anything else: the PeerJS broker is unreachable.
+        if ((e as { type?: string }).type !== 'unavailable-id') brokerDown = true;
       }
     }
-    if (!peer) throw new Error('Could not open a room, try again.');
-    const s = new NetSession(peer, 'host', code, peer.id);
-    s.players = [{ ...me, id: peer.id, color: PLAYER_COLORS[0]! }];
-    peer.on('connection', (c) => s.accept(c));
-    // The relay is best effort: direct links still work if no broker answers.
+    if (!peer && !brokerDown) throw new Error('Could not open a room, try again.');
+    const id = peer?.id ?? NET.prefix + code;
+    const s = new NetSession(peer, 'host', code, id);
+    s.players = [{ ...me, id, color: PLAYER_COLORS[0]! }];
+    peer?.on('connection', (c) => s.accept(c));
+    // Direct links and the relay each work alone; the room needs at least one of them.
     try {
       await s.hostRelay();
     } catch {
-      // keep going on direct links only
+      if (!peer) throw new Error('Could not open a room: the online services are unreachable right now.');
     }
     s.pingTimer = window.setInterval(() => s.hostTick(), PING_EVERY * 1000);
     return s;
@@ -185,8 +193,8 @@ export class NetSession {
     if (peer) {
       const direct = await NetSession.joinDirect(peer, code, me);
       if (direct instanceof NetSession) return direct;
-      if (direct === 'no-room') throw new Error('No room with that code.');
       if (direct === 'full') throw new Error('That room is full.');
+      // 'no-room' on the direct path can still be a relay-only host: the relay has the last word.
     }
     return NetSession.joinRelay(code, me);
   }
