@@ -644,3 +644,24 @@ This phase:
 - **Production:** `vercel.json` adds immutable caching for hashed `/assets` and day caching for `/models`.
   - The preview build loads with no errors and no dev tools.
   - The README now covers controls, Customize and deploying.
+
+## Phase 11 — Online multiplayer ✅
+Peer-to-peer over WebRTC (`peerjs`). The free public PeerJS broker only does the handshake, so there's no server of ours and it still deploys as a static site.
+- **Rooms** (main menu → Ride online):
+  - Enter a name, then host a room (you get a 5-letter code) or join with a code. Up to 8 players.
+  - The host picks the mountain (only ones the host has unlocked), whether bots fill the empty grid spots, and the bots' difficulty, then starts.
+- **Race start:** everyone loads the mountain and waits on the grid. When all have loaded (or after 25 s), the host says go and everyone counts down together.
+- **Who simulates what** (`net/NetSession.ts`, messages in `net/protocol.ts`):
+  - Each machine simulates only its own rider; the host also runs the bots.
+  - Riders' states (global position, rotation, velocity, vehicle) go out 15 times a second; clients send to the host, which relays.
+  - Other riders are puppets (`PlayerController.setPuppet`): non-solid, extrapolated from their last state and eased toward it, with vehicle switches mirrored.
+- **Gameplay events:**
+  - Finishes are each player's own run time, broadcast to everyone, and standings use them.
+  - Bottle hits on another machine's rider are sent to that machine, which applies the knockout.
+  - Players who leave mid-race disappear but stay on the standings.
+- **In an online race:** the pause menu has no Restart, and "Leave race" returns you to the lobby. The results screen has "Back to lobby", and the host can start the next race from there.
+- **Not in this version:**
+  - You don't see other players' bottles in flight, only the hits.
+  - Other riders' trick spins aren't mirrored.
+  - Strict networks (some school or office wifi) can block WebRTC; there's no relay fallback.
+  - If the host leaves, the room closes.

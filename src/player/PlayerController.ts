@@ -67,6 +67,9 @@ export class PlayerController {
   onEvent: (<K extends RiderEvent>(type: K, payload: GameEvents[K]) => void) | null = null;
   /** Ghost mode (non-local riders far from the local one): no physics, coast along the line. */
   ghost = false;
+  /** Another player's rider (online): placed from their network states, never simulated here. */
+  puppet = false;
+  private feed: { p: THREE.Vector3; q: THREE.Quaternion; v: THREE.Vector3; at: number; vehicle: VehicleId } | null = null;
   /** Coasting speed along the course while a ghost (m/s), set by the race. */
   ghostSpeed = 0;
   private ghostS = 0;
@@ -206,7 +209,7 @@ export class PlayerController {
     } finally {
       this.attachVehicle(this.vehicle);
     }
-    if (this.ghost) this.vehicle.setSolid(false);
+    if (this.ghost || this.puppet) this.vehicle.setSolid(false);
     this.motion.reset();
     if (opts.silent) return true;
     this.popT = 0;
@@ -251,6 +254,8 @@ export class PlayerController {
 
   /** Hit by something thrown: off the vehicle (a crash) unless a Shield takes it. Returns true if knocked off. */
   knockOut(reason: string): boolean {
+    // Another player's rider: the hit is sent to their machine, which decides (shields etc.).
+    if (this.puppet) return true;
     if (this.state !== 'riding' || this.ghost) return false;
     if (this.perks.absorbCrash()) return false;
     return !this.onCrash(reason);
@@ -373,8 +378,47 @@ export class PlayerController {
     return this.game.physics.raycast(p.x, p.y + 3, p.z, 0, -1, 0, 12, GROUND_QUERY, this.vehicle.body) !== null;
   }
 
+  /** Online: the latest state of a puppet (global position, body rotation, velocity). */
+  setRemoteState(p: number[], q: number[], v: number[], vehicle: VehicleId): void {
+    const f = (this.feed ??= { p: new THREE.Vector3(), q: new THREE.Quaternion(), v: new THREE.Vector3(), at: 0, vehicle });
+    f.p.set(p[0]!, p[1]!, p[2]!);
+    f.q.set(q[0]!, q[1]!, q[2]!, q[3]!);
+    f.v.set(v[0]!, v[1]!, v[2]!);
+    f.vehicle = vehicle;
+    f.at = performance.now();
+  }
+
+  /** Make this rider a puppet (or not): non-solid, driven only by network states. */
+  setPuppet(on: boolean): void {
+    this.puppet = on;
+    this.vehicle.setSolid(!on);
+  }
+
+  private puppetStep(): void {
+    const f = this.feed;
+    if (!f || this.state !== 'riding') return;
+    if (f.vehicle !== this.vehicle.id) this.switchTo(f.vehicle, { silent: true, hop: false });
+    // Extrapolate the last state a little (it's ~1/15 s old plus latency), then ease toward it.
+    const age = Math.min(0.25, (performance.now() - f.at) / 1000);
+    _g.copy(f.p).addScaledVector(f.v, age);
+    this.world.origin.toLocal(_g, _v);
+    const b = this.vehicle.body;
+    const t = b.translation();
+    const far = Math.hypot(_v.x - t.x, _v.y - t.y, _v.z - t.z) > 8;
+    const k = far ? 1 : 0.35;
+    b.setTranslation({ x: t.x + (_v.x - t.x) * k, y: t.y + (_v.y - t.y) * k, z: t.z + (_v.z - t.z) * k }, true);
+    _q.set(b.rotation().x, b.rotation().y, b.rotation().z, b.rotation().w).slerp(f.q, far ? 1 : 0.4);
+    b.setRotation(_q, true);
+    b.setLinvel({ x: f.v.x, y: f.v.y, z: f.v.z }, true);
+    b.setAngvel({ x: 0, y: 0, z: 0 }, true);
+  }
+
   fixedUpdate(dt: number): void {
     this.simTime += dt;
+    if (this.puppet) {
+      this.puppetStep();
+      return;
+    }
     this.throwCooldown = Math.max(0, this.throwCooldown - dt);
     if (this.ghost) {
       this.ghostStep(dt);
@@ -401,6 +445,13 @@ export class PlayerController {
 
   afterStep(dt: number): void {
     if (this.ghost) return;
+    if (this.puppet) {
+      if (this.state !== 'riding') return;
+      this.vehicle.afterStep(dt, this.ctx);
+      this.globalPosition(_g);
+      this.progress.update(_g.x, _g.z);
+      return;
+    }
     if (this.state === 'riding') {
       const v = this.vehicle;
       v.afterStep(dt, this.ctx);

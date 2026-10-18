@@ -12,7 +12,8 @@ import { Puff } from '../fx/Puff';
 import { Spray, type SprayRider } from '../fx/Spray';
 import { MAPS } from '../config/maps';
 import { SpeedLines } from '../fx/SpeedLines';
-import { Race } from '../gameplay/Race';
+import { Race, type OnlineGrid } from '../gameplay/Race';
+import { NET, type RiderState } from '../net/protocol';
 import { Run } from '../gameplay/Run';
 import { DIFFICULTY, RACE } from '../config/race';
 import { loadRiderPack } from '../models/ModelLoader';
@@ -75,10 +76,17 @@ export class PlayMode implements GameMode {
   private slowMo = 0;
   private spawnS: number;
 
+  /** Online race (null offline). */
+  readonly online: OnlineGrid | null;
+  private sendTimer = 0;
+  private finSent = new Set<string>();
+
   private constructor(
     private readonly game: Game,
     readonly world: World,
+    online: OnlineGrid | null,
   ) {
+    this.online = online;
     const props = world.courseProps;
     this.spawnS = props.startS + RUN.spawnOffset;
     this.player = new PlayerController(game, world, 'onFoot', this.spawnS, { look: game.save.data.look, paint: (id) => game.save.paintFor(id) });
@@ -95,7 +103,7 @@ export class PlayMode implements GameMode {
     this.hud = new HUD(game.ui, world.course, world.course.checkpoints, props.finishS);
     this.tags = new NameTags(this.hud.el);
     this.player.resetS = () => this.run.checkpoints.respawnS();
-    this.race = new Race(game, world, this.player, this.spawnS, props.finishS, world.course.checkpoints);
+    this.race = new Race(game, world, this.player, this.spawnS, props.finishS, world.course.checkpoints, online);
     this.run.standings = (time) => this.race.results(time);
     this.run.difficultyLabel = () => DIFFICULTY[this.race.difficulty].label;
     this.pickups = new Pickups(world, game.renderer.worldRoot);
@@ -107,6 +115,9 @@ export class PlayMode implements GameMode {
     this.throwRiders = this.race.entries.map((e) => ({ id: e.id, name: e.name, rider: e.rider, local: e.kind === 'local' }));
     this.throwables.onHit = (from, to, blocked) => {
       if (!blocked) from.rider.perks.knockouts++;
+      // Online: a hit on another machine's rider is theirs to apply.
+      const target = this.race.entries.find((e) => e.id === to.id);
+      if (!blocked && target?.kind === 'remote') this.game.net?.sendKo(to.id, from.name);
       if (!blocked && to.local) this.playerGrace = THROW.playerGrace;
       events.emit('rider:hit', { from: from.name, to: to.name, byYou: from.local, onYou: to.local, blocked });
     };
@@ -139,11 +150,11 @@ export class PlayMode implements GameMode {
     this.player.focusLocal(this.focus);
   }
 
-  static async create(game: Game, mapId: MapId, progress: ProgressFn): Promise<PlayMode> {
+  static async create(game: Game, mapId: MapId, progress: ProgressFn, online: OnlineGrid | null = null): Promise<PlayMode> {
     // Props (trees, crowds of riders-pack spectators) are built with the world: load both packs first.
     await Promise.all([loadRiderPack(RIDER_ASSET.url), loadNatureKit(NATURE_ASSET.url)]);
     const world = await World.create(mapId, game.renderer, game.physics, game.graphics, progress);
-    return new PlayMode(game, world);
+    return new PlayMode(game, world, online);
   }
 
   /** Menu background: slow flyover down the course, rider parked at the start. */
@@ -172,7 +183,7 @@ export class PlayMode implements GameMode {
     this.player.autoBrake = false;
     this.player.respawnAt(this.spawnS, 0, 'start', this.race.playerLat);
     this.player.frozen = true;
-    this.race.reset(this.game.save.data.settings.difficulty);
+    this.race.reset(this.game.net?.racing ? this.game.net.difficulty : this.game.save.data.settings.difficulty);
     this.pickups.reset();
     this.secrets.reset();
     this.borrowed.clear();
@@ -180,6 +191,9 @@ export class PlayMode implements GameMode {
     this.player.lastGround = 'bicycle';
     this.throwables.clear();
     this.run.begin(false);
+    // Online: hold on the grid until every machine is loaded, then everyone counts down together.
+    this.run.holdIntro = this.online !== null;
+    this.finSent.clear();
     this.hud.setVisible(true);
     this.chase.snap();
     this.slowMo = 0;
@@ -281,6 +295,7 @@ export class PlayMode implements GameMode {
     this.race.update(realDt, simDt, alpha, run, this.game.renderer.camera.position);
     const standings = this.race.standings();
     this.updateTags(standings);
+    if (this.online) this.updateNet(realDt);
     this.updateThrows(simDt, run.state === 'running');
     this.updateSpray(simDt);
     this.pickups.update(simDt, this.world.origin.toGlobal(this.game.renderer.camera.position, this.camGlobal), run.state === 'running' ? this.pickupRiders : []);
@@ -313,6 +328,63 @@ export class PlayMode implements GameMode {
         : null,
     );
   }
+
+  /** Online: everyone counts down together (the host said go). */
+  netGo(): void {
+    this.run.skipIntro(true);
+  }
+
+  /** Online: apply other machines' rider states. */
+  netStates(list: RiderState[]): void {
+    for (const st of list) {
+      const e = this.race.entries.find((x) => x.id === st.id);
+      if (e && e.kind === 'remote') e.rider.setRemoteState(st.p, st.q, st.v, st.veh);
+    }
+  }
+
+  netFin(id: string, time: number): void {
+    this.race.remoteFinish(id, time);
+  }
+
+  /** Online: someone hit a rider this machine runs (you, or the host's bots). */
+  netKo(target: string, from: string): void {
+    const e = this.race.entries.find((x) => x.id === target);
+    if (e && e.kind !== 'remote') e.rider.knockOut(`hit by ${from}`);
+  }
+
+  netLeft(id: string): void {
+    this.race.remoteLeft(id);
+  }
+
+  /** Send this machine's riders (you; the host also sends its bots) and any new finishes. */
+  private updateNet(dt: number): void {
+    const net = this.game.net;
+    if (!net || this.phase !== 'run') return;
+    this.sendTimer -= dt;
+    if (this.sendTimer <= 0) {
+      this.sendTimer = 1 / NET.sendRate;
+      const list: RiderState[] = [];
+      for (const e of this.race.entries) {
+        if (e.kind === 'remote' || (e.kind === 'bot' && !net.isHost)) continue;
+        const r = e.rider;
+        const b = r.vehicle.body;
+        const t = b.translation();
+        const g = this.world.origin.toGlobal(this.netPos.set(t.x, t.y, t.z), this.netPos);
+        const q = b.rotation();
+        const v = b.linvel();
+        const round = (x: number) => Math.round(x * 100) / 100;
+        list.push({ id: e.id, p: [round(g.x), round(g.y), round(g.z)], q: [q.x, q.y, q.z, q.w].map((x) => Math.round(x * 1000) / 1000), v: [round(v.x), round(v.y), round(v.z)], veh: r.vehicle.id });
+      }
+      net.sendStates(list);
+    }
+    for (const e of this.race.entries) {
+      if (e.kind === 'remote' || e.finishTime === null || this.finSent.has(e.id)) continue;
+      this.finSent.add(e.id);
+      net.sendFin(e.id, e.finishTime);
+    }
+  }
+
+  private netPos = new THREE.Vector3();
 
   /** Dust, mud, snow and water kicked up by every rider near the camera, plus landing bursts. */
   private updateSpray(dt: number): void {
@@ -377,7 +449,7 @@ export class PlayMode implements GameMode {
   /** Name tags over the bots near the camera. */
   private updateTags(standings: ReturnType<Race['standings']>): void {
     const cam = this.game.renderer.camera;
-    const bots = this.race.bots;
+    const bots = this.race.entries.filter((e) => e.kind !== 'local');
     while (this.tagItems.length < bots.length) this.tagItems.push({ id: '', name: '', position: 0, color: '', at: new THREE.Vector3(), show: false });
     bots.forEach((e, k) => {
       const item = this.tagItems[k]!;

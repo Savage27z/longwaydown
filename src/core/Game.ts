@@ -3,6 +3,10 @@ import { RUN } from '../config/gameplay';
 import { MAP_ORDER, MAPS, type MapId } from '../config/maps';
 import { Progression } from '../gameplay/Progression';
 import { AudioManager } from '../audio/AudioManager';
+import { NetSession } from '../net/NetSession';
+import { NET, type LobbyPlayer, type StartInfo } from '../net/protocol';
+import { Race, type OnlineGrid } from '../gameplay/Race';
+import { VEHICLE_IDS } from '../config/vehicles';
 import type { RunResults } from '../gameplay/Run';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { Renderer } from '../render/Renderer';
@@ -43,6 +47,8 @@ export class Game {
   readonly save = new Save();
   readonly progression = new Progression(this.save);
   readonly audio = new AudioManager();
+  /** The online room, when in one. */
+  net: NetSession | null = null;
   readonly menus: Menus;
   quality: QualityPreset;
   state: StateId = 'loading';
@@ -73,6 +79,13 @@ export class Game {
     this.menus = new Menus(ui, this.save, this.progression, this.input, {
       playMap: (id) => void this.playMap(id),
       lookChanged: () => this.play?.applyLook(),
+      toLobby: () => this.toLobby(),
+      online: {
+        host: (name) => this.openRoom(() => NetSession.host(this.me(name))),
+        join: (code, name) => this.openRoom(() => NetSession.join(code, this.me(name))),
+        leave: () => this.leaveRoom(),
+        start: () => this.startOnline(),
+      },
       resume: () => this.resume(),
       restart: () => this.startRun(),
       respawn: () => {
@@ -84,6 +97,7 @@ export class Game {
       applySettings: () => this.applySettings(),
     });
     this.menus.back = () => this.menuBack();
+    this.menus.net = () => this.net;
     this.audio.bind(events);
     events.on('run:finish', ({ results }) => {
       this.pendingResults = results;
@@ -109,8 +123,8 @@ export class Game {
     await this.createPlay(map, progress);
   }
 
-  private async createPlay(map: MapId, progress: ProgressFn): Promise<void> {
-    this.play = await PlayMode.create(this, map, progress);
+  private async createPlay(map: MapId, progress: ProgressFn, online: OnlineGrid | null = null): Promise<void> {
+    this.play = await PlayMode.create(this, map, progress, online);
     this.mode = this.play;
     this.applySettings();
     this.onModeCreated?.(this.play);
@@ -130,7 +144,7 @@ export class Game {
   // ---- Menu actions ----
 
   async playMap(id: MapId): Promise<void> {
-    if (!this.play || this.play.world.mapId !== id) {
+    if (!this.play || this.play.world.mapId !== id || this.play.online) {
       this.menus.hide();
       this.setState('loading');
       this.loading.show('Loading…');
@@ -142,6 +156,97 @@ export class Game {
       this.loading.hide();
     }
     this.startRun();
+  }
+
+  // ---- Online ----
+
+  /** This player as others see them: name, outfit and paint for every vehicle. */
+  private me(name: string): Omit<LobbyPlayer, 'id' | 'color'> {
+    const paint: LobbyPlayer['paint'] = {};
+    for (const id of VEHICLE_IDS) {
+      const p = this.save.paintFor(id);
+      if (p) paint[id] = p;
+    }
+    return { name, look: this.save.data.look, paint };
+  }
+
+  private async openRoom(open: () => Promise<NetSession>): Promise<void> {
+    try {
+      const net = await open();
+      this.net = net;
+      if (net.isHost) net.map = this.play?.world.mapId ?? 'snowPeak';
+      if (net.isHost) net.difficulty = this.save.data.settings.difficulty;
+      this.bindNet(net);
+      if (net.isHost) net.pushLobby();
+    } catch (e) {
+      this.menus.onlineStatus = (e as Error).message || 'Could not connect.';
+    }
+    this.menus.show('online');
+  }
+
+  private bindNet(net: NetSession): void {
+    const refresh = () => {
+      if (this.menus.current === 'online') this.menus.show('online');
+    };
+    net.onLobby = refresh;
+    net.onStart = (info) => void this.playOnline(info);
+    net.onGo = () => this.play?.netGo();
+    net.onStates = (list) => this.play?.netStates(list);
+    net.onFin = (id, time) => this.play?.netFin(id, time);
+    net.onKo = (target, from) => this.play?.netKo(target, from);
+    net.onLeft = (id) => {
+      this.play?.netLeft(id);
+      refresh();
+    };
+    net.onLobbyReturn = () => this.toLobby();
+    net.onClosed = (reason) => {
+      this.net = null;
+      this.menus.onlineStatus = reason;
+      if (this.state !== 'menu') this.quitToMenu();
+      this.menus.show('online');
+    };
+  }
+
+  private leaveRoom(): void {
+    this.net?.close();
+    this.net = null;
+    this.menus.show('online');
+  }
+
+  /** Host: grid = the players (host first), then bots to fill it if wanted. */
+  private startOnline(): void {
+    const net = this.net;
+    if (!net?.isHost) return;
+    const humans = net.players.map((p) => ({ id: p.id, name: p.name, kind: 'human' as const, look: p.look, paint: p.paint, color: p.color }));
+    const bots = net.bots ? Race.botRoster(net.map, Math.max(0, NET.gridSize - humans.length)) : [];
+    net.start({ map: net.map, difficulty: net.difficulty, roster: [...humans, ...bots] });
+  }
+
+  /** Load the mountain with this grid, line up, and tell the host we're ready. */
+  private async playOnline(info: StartInfo): Promise<void> {
+    const net = this.net;
+    if (!net) return;
+    this.menus.hide();
+    this.setState('loading');
+    this.loading.show('Loading…');
+    const old = this.play;
+    this.play = null;
+    this.mode = null;
+    old?.dispose();
+    await this.createPlay(info.map, (p, msg) => this.loading.set(p, msg), { selfId: net.selfId, isHost: net.isHost, roster: info.roster });
+    this.loading.hide();
+    this.startRun();
+    net.markReady();
+  }
+
+  /** Online: out of the race (finished or left) and back to the room. */
+  private toLobby(): void {
+    // Local only: others may still be racing (the host can start the next race any time).
+    if (this.net) this.net.racing = false;
+    this.finishTimer = -1;
+    this.play?.enterMenu();
+    this.setState('menu');
+    this.menus.show('online');
   }
 
   startRun(): void {

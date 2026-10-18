@@ -138,7 +138,11 @@ export class Run {
     this.countdownN = RUN.countdownFrom + 1;
   }
 
-  skipIntro(): void {
+  /** Online: the intro waits here until the host says go (then `skipIntro(true)`). */
+  holdIntro = false;
+
+  skipIntro(force = false): void {
+    if (this.holdIntro && !force) return;
     if (this.state === 'intro') {
       this.setState('countdown');
       this.countdownN = RUN.countdownFrom + 1;
@@ -155,7 +159,7 @@ export class Run {
     this.stateTime += realDt;
     switch (this.state) {
       case 'intro':
-        if (this.stateTime >= RUN.introDuration) {
+        if (this.stateTime >= RUN.introDuration && !this.holdIntro) {
           this.setState('countdown');
           this.countdownN = RUN.countdownFrom + 1;
         }

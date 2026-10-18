@@ -44,6 +44,8 @@ export interface SaveData {
     unlockedCosmetics: string[];
     collectibles: string[];
   };
+  /** Name shown to other riders online. */
+  name: string;
   look: RiderLook;
   /** Vehicle paint per vehicle (unset = the vehicle's default). */
   paint: Partial<Record<VehicleId, { primary: string; secondary: string }>>;
@@ -66,6 +68,7 @@ export function defaultSave(): SaveData {
       unlockedCosmetics: [],
       collectibles: [],
     },
+    name: '',
     look: { ...DEFAULT_LOOK },
     paint: {},
     firstPlayDone: false,

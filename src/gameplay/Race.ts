@@ -12,6 +12,18 @@ import { damp } from '../utils/math';
 import type { World } from '../world/World';
 import { BotDriver } from './BotDriver';
 import type { RunState } from './Run';
+import type { Paint, RosterEntry } from '../net/protocol';
+import type { MapId } from '../config/maps';
+import type { VehicleInput } from '../vehicles/Vehicle';
+
+/** Online grid: who's racing, in grid order, and whether this machine runs the bots. */
+export interface OnlineGrid {
+  selfId: string;
+  isHost: boolean;
+  roster: RosterEntry[];
+}
+
+const IDLE: Partial<VehicleInput> = { throttle: 0, brake: 0, steer: 0, pitch: 0, spin: 0, jumpPressed: false, jumpHeld: false, boost: false, trick: false, throwPressed: false };
 
 const _a = new THREE.Vector3();
 const _b = new THREE.Vector3();
@@ -90,32 +102,77 @@ export class Race {
     private readonly spawnS: number,
     private readonly finishS: number,
     private readonly checkpoints: number[],
+    online: OnlineGrid | null = null,
   ) {
-    this.local = { id: 'you', name: 'You', kind: 'local', rider: player, driver: null, color: '#ff5a1f', penalties: 0, finishTime: null, pace: 0, lastS: spawnS, ghostHold: 0, ghostSlow: 0, ghostStop: 0, garage: [], baseLevel: 1, checkpoint: -1 };
+    const self = online?.roster.find((r) => r.id === online.selfId);
+    this.local = { id: self?.id ?? 'you', name: 'You', kind: 'local', rider: player, driver: null, color: self?.color ?? '#ff5a1f', penalties: 0, finishTime: null, pace: 0, lastS: spawnS, ghostHold: 0, ghostSlow: 0, ghostStop: 0, garage: [], baseLevel: 1, checkpoint: -1 };
     this.entries.push(this.local);
-    const biome = MAPS[world.mapId].biome;
-    const rng = makeRng(`race:${world.mapId}`);
+    if (!online) {
+      // Offline: the player in their usual slot, bots around them.
+      Race.botRoster(world.mapId, RACE.bots).forEach((r, k) => this.entries.push(this.addBot(game, r, k >= RACE.playerSlot ? k + 1 : k)));
+      return;
+    }
+    online.roster.forEach((r, slot) => {
+      if (r.id === this.local.id) {
+        this.localSlot = slot;
+        return;
+      }
+      this.entries.push(r.kind === 'bot' && online.isHost ? this.addBot(game, r, slot) : this.addRemote(game, r, slot));
+    });
+  }
+
+  /** Grid slot of each rider (by id). */
+  private slots = new Map<string, number>();
+  private localSlot: number = RACE.playerSlot;
+
+  /** The bots for a map: names, outfits and paint (deterministic per map). */
+  static botRoster(mapId: MapId, count: number): RosterEntry[] {
+    const rng = makeRng(`race:${mapId}`);
     const names = [...BOT_NAMES].sort(() => rng() - 0.5);
-    for (let k = 0; k < RACE.bots; k++) {
+    const out: RosterEntry[] = [];
+    for (let k = 0; k < count; k++) {
       const part = () => BOT_OUTFITS[Math.floor(rng() * BOT_OUTFITS.length)]!;
       const look: RiderLook = { head: part(), body: part(), legs: part(), feet: part(), backpack: rng() < 0.4 };
       const [primary, secondary] = BOT_PAINTS[k % BOT_PAINTS.length]!;
-      const garage = BOT_GARAGES[biome][k % BOT_GARAGES[biome].length]!;
-      const vehicle = garage[0]!;
-      const driver = new BotDriver(world, { level: BOT_LEVELS[k] ?? 0.8, lane: (rng() - 0.5) * 5, seed: rng() * 10 });
-      const rider = new PlayerController(game, world, 'onFoot', spawnS, { local: false, source: driver, look, paint: { primary, secondary } });
-      rider.lastGround = vehicle;
-      driver.rider = rider;
-      const entry: RaceEntry = { id: `bot${k}`, name: names[k]!, kind: 'bot', rider, driver, color: primary, penalties: 0, finishTime: null, pace: nominal(vehicle), lastS: spawnS, ghostHold: 0, ghostSlow: 0, ghostStop: 0, garage, baseLevel: BOT_LEVELS[k] ?? 0.7, checkpoint: -1 };
-      rider.resetS = () => this.respawnS(entry);
-      rider.onEvent = (type, payload) => {
-        if (this.lastRunState !== 'running' || entry.finishTime !== null) return;
-        if (type === 'player:crash') entry.penalties += (payload as { penalty: number }).penalty;
-        // Time Freeze for a bot: a time credit worth the frozen seconds.
-        if (type === 'rider:pickup' && (payload as { kind: string }).kind === 'freeze') entry.penalties -= PICKUPS.freezeSeconds;
-      };
-      this.entries.push(entry);
+      out.push({ id: `bot${k}`, name: names[k]!, kind: 'bot', look, paint: { primary, secondary }, color: primary, bot: k });
     }
+    return out;
+  }
+
+  private addBot(game: Game, r: RosterEntry, slot: number): RaceEntry {
+    const world = this.world;
+    const k = r.bot ?? 0;
+    const biome = MAPS[world.mapId].biome;
+    const rng = makeRng(`bot:${world.mapId}:${k}`);
+    const garage = BOT_GARAGES[biome][k % BOT_GARAGES[biome].length]!;
+    const vehicle = garage[0]!;
+    const driver = new BotDriver(world, { level: BOT_LEVELS[k] ?? 0.8, lane: (rng() - 0.5) * 5, seed: rng() * 10 });
+    const rider = new PlayerController(game, world, 'onFoot', this.spawnS, { local: false, source: driver, look: r.look, paint: r.paint as Paint });
+    rider.lastGround = vehicle;
+    driver.rider = rider;
+    const entry: RaceEntry = { id: r.id, name: r.name, kind: 'bot', rider, driver, color: r.color, penalties: 0, finishTime: null, pace: nominal(vehicle), lastS: this.spawnS, ghostHold: 0, ghostSlow: 0, ghostStop: 0, garage, baseLevel: BOT_LEVELS[k] ?? 0.7, checkpoint: -1 };
+    rider.resetS = () => this.respawnS(entry);
+    rider.onEvent = (type, payload) => {
+      if (this.lastRunState !== 'running' || entry.finishTime !== null) return;
+      if (type === 'player:crash') entry.penalties += (payload as { penalty: number }).penalty;
+      // Time Freeze for a bot: a time credit worth the frozen seconds.
+      if (type === 'rider:pickup' && (payload as { kind: string }).kind === 'freeze') entry.penalties -= PICKUPS.freezeSeconds;
+    };
+    this.slots.set(r.id, slot);
+    return entry;
+  }
+
+  /** Another machine's rider (a human, or a bot on the host): a puppet driven by its states. */
+  private addRemote(game: Game, r: RosterEntry, slot: number): RaceEntry {
+    const paint = r.kind === 'bot' ? (r.paint as Paint) : (id: VehicleId) => (r.paint as Partial<Record<VehicleId, Paint>>)[id];
+    const rider = new PlayerController(game, this.world, 'onFoot', this.spawnS, { local: false, source: { read: (i) => Object.assign(i, IDLE) }, look: r.look, paint });
+    rider.setPuppet(true);
+    this.slots.set(r.id, slot);
+    return { id: r.id, name: r.name, kind: 'remote', rider, driver: null, color: r.color, penalties: 0, finishTime: null, pace: nominal('mountainBike'), lastS: this.spawnS, ghostHold: 0, ghostSlow: 0, ghostStop: 0, garage: [], baseLevel: 1, checkpoint: -1 };
+  }
+
+  get remotes(): RaceEntry[] {
+    return this.entries.filter((e) => e.kind === 'remote');
   }
 
   get bots(): RaceEntry[] {
@@ -135,7 +192,7 @@ export class Race {
 
   /** Lateral offset of the local player's grid slot. */
   get playerLat(): number {
-    return this.slot(RACE.playerSlot).lat;
+    return this.slot(this.localSlot).lat;
   }
 
   /** Line everyone up on the grid, frozen, with a fresh clock, at a difficulty. */
@@ -143,15 +200,18 @@ export class Race {
     this.difficulty = difficulty;
     const d = DIFFICULTY[difficulty];
     this.time = 0;
-    let j = 0;
     for (const e of this.entries) {
       e.rider.perks.reset();
       e.penalties = 0;
       e.finishTime = null;
       e.lastS = this.spawnS;
+      if (e.kind === 'remote') {
+        const { s, lat } = this.slot(this.slots.get(e.id) ?? 0);
+        e.rider.respawnAt(s, 0, 'start', lat);
+        e.rider.frozen = true;
+      }
       if (e.kind !== 'bot') continue;
-      if (j === RACE.playerSlot) j++;
-      const { s, lat } = this.slot(j++);
+      const { s, lat } = this.slot(this.slots.get(e.id) ?? 0);
       e.rider.autoBrake = false;
       e.rider.lastGround = e.garage[0]!;
       e.rider.respawnAt(s, 0, 'start', lat);
@@ -180,12 +240,27 @@ export class Race {
   }
 
   fixedUpdate(dt: number): void {
-    for (const e of this.entries) if (e.kind === 'bot') e.rider.fixedUpdate(dt);
+    for (const e of this.entries) if (e.kind !== 'local') e.rider.fixedUpdate(dt);
   }
 
   afterStep(dt: number): void {
-    for (const e of this.entries) if (e.kind === 'bot') e.rider.afterStep(dt);
+    for (const e of this.entries) if (e.kind !== 'local') e.rider.afterStep(dt);
   }
+
+  /** Online: a remote rider finished (their own clock, penalties included). */
+  remoteFinish(id: string, time: number): void {
+    const e = this.entries.find((x) => x.id === id);
+    if (e && e.kind !== 'local' && e.finishTime === null) e.finishTime = time;
+  }
+
+  /** Online: a rider left mid-race (stays on the board where they stopped). */
+  remoteLeft(id: string): void {
+    const e = this.entries.find((x) => x.id === id);
+    if (e && e.kind === 'remote') this.gone.add(id);
+  }
+
+  /** Online riders who left mid-race (hidden, kept on the board). */
+  private gone = new Set<string>();
 
   /**
    * Per frame: clock, finishes, ghost <-> physics hand-overs, pace learning, rubber band and
@@ -193,7 +268,7 @@ export class Race {
    */
   update(_dt: number, simDt: number, alpha: number, run: { state: RunState; frozen: boolean; total: number }, camera: THREE.Vector3): void {
     this.lastRunState = run.state;
-    const racing = run.state === 'running' || (run.state === 'finished' && this.bots.some((e) => e.finishTime === null));
+    const racing = run.state === 'running' || (run.state === 'finished' && this.entries.some((e) => e.kind !== 'local' && e.finishTime === null));
     if (racing) this.time += simDt;
     const local = this.local;
     if (run.state === 'finished' && local.finishTime === null) local.finishTime = run.total;
@@ -206,6 +281,10 @@ export class Race {
     local.rider.globalPosition(_p);
     const chunks = this.world.chunks;
     for (const e of this.entries) {
+      if (e.kind === 'remote') {
+        this.updateRemote(e, simDt, alpha, run, camera);
+        continue;
+      }
       if (e.kind !== 'bot') continue;
       const r = e.rider;
       r.frozen = run.frozen;
@@ -287,6 +366,22 @@ export class Race {
     if (run.state === 'running') this.closePasses();
   }
 
+  private updateRemote(e: RaceEntry, simDt: number, alpha: number, run: { state: RunState }, camera: THREE.Vector3): void {
+    const r = e.rider;
+    const s = r.progress.result.s;
+    if (run.state === 'running' && simDt > 0 && e.finishTime === null) {
+      const rate = Math.max(0, (s - e.lastS) / simDt);
+      if (rate < 90) e.pace = damp(e.pace, rate, RACE.paceRate, simDt);
+    }
+    e.lastS = s;
+    r.frozen = false;
+    r.vehicle.renderPosition(_a);
+    const d = _a.distanceTo(camera);
+    r.vehicle.model.visible = !this.gone.has(e.id) && d < RACE.drawRange * 1.5;
+    r.detail = d < RACE.detailRange;
+    r.update(simDt, alpha);
+  }
+
   private readonly passA = new THREE.Vector3();
   private readonly passB = new THREE.Vector3();
   /** Riders flashing past each other close but clean count as near misses for both. */
@@ -349,6 +444,6 @@ export class Race {
   }
 
   dispose(): void {
-    for (const e of this.entries) if (e.kind === 'bot') e.rider.dispose();
+    for (const e of this.entries) if (e.kind !== 'local') e.rider.dispose();
   }
 }

@@ -6,6 +6,8 @@ import type { Progression } from '../gameplay/Progression';
 import type { RunResults } from '../gameplay/Run';
 import { customizeScreen } from './CustomizeScreen';
 import { MenuNav } from './MenuNav';
+import { onlineScreen, type OnlineActions } from './OnlineScreen';
+import type { NetSession } from '../net/NetSession';
 import { formatTime } from '../utils/math';
 import { VEHICLE_ICONS } from './icons';
 import { mapSelectScreen } from './MapSelect';
@@ -19,9 +21,12 @@ export interface MenuActions extends SettingsHooks {
   quitToMenu(): void;
   /** The rider's look or paint changed in Customize. */
   lookChanged(): void;
+  online: OnlineActions;
+  /** Online: leave the race for the room's lobby. */
+  toLobby(): void;
 }
 
-export type ScreenName = 'main' | 'maps' | 'settings' | 'credits' | 'pause' | 'results' | 'controls' | 'customize';
+export type ScreenName = 'main' | 'maps' | 'settings' | 'credits' | 'pause' | 'results' | 'controls' | 'customize' | 'online';
 
 function button(label: string, onClick: () => void, cls = ''): HTMLButtonElement {
   const b = document.createElement('button');
@@ -41,6 +46,9 @@ export class Menus {
   /** Gamepad navigation; `back` is what B does (set by the game). */
   readonly nav: MenuNav;
   back: () => void = () => undefined;
+  /** The online room (set by the game) and a status line for the online screen. */
+  net: () => NetSession | null = () => null;
+  onlineStatus = '';
 
   constructor(
     parent: HTMLElement,
@@ -99,6 +107,10 @@ export class Menus {
       case 'controls':
         el = this.controlsScreen();
         break;
+      case 'online':
+        el = onlineScreen(this.save, this.net(), this.actions.online, () => this.show('main'), this.onlineStatus);
+        this.onlineStatus = '';
+        break;
       case 'customize': {
         const c = customizeScreen(this.save, this.progression, () => this.actions.lookChanged(), () => this.show('main'));
         el = c.el;
@@ -118,6 +130,7 @@ export class Menus {
     this.returnTo = 'main';
     b.append(
       button('Play', () => this.show('maps'), 'primary'),
+      button('Ride online', () => this.show('online')),
       button('Customize', () => this.show('customize')),
       button('Settings', () => this.show('settings')),
       button('Controls', () => this.show('controls')),
@@ -131,13 +144,14 @@ export class Menus {
     p.className = 'menu-panel card';
     p.innerHTML = `<h2 class="menu-heading">Paused</h2><div class="menu-buttons"></div>`;
     this.returnTo = 'pause';
+    const online = this.net()?.racing ?? false;
     p.querySelector('.menu-buttons')!.append(
       button('Resume', () => this.actions.resume(), 'primary'),
       button('Respawn at checkpoint', () => this.actions.respawn()),
-      button('Restart run', () => this.actions.restart()),
+      ...(online ? [] : [button('Restart run', () => this.actions.restart())]),
       button('Settings', () => this.show('settings')),
       button('Controls', () => this.show('controls')),
-      button('Quit to menu', () => this.actions.quitToMenu()),
+      online ? button('Leave race (back to lobby)', () => this.actions.toLobby()) : button('Quit to menu', () => this.actions.quitToMenu()),
     );
     return p;
   }
@@ -170,6 +184,10 @@ export class Menus {
       </div>
       <div class="row"></div>`;
     const row = p.querySelector('.row')!;
+    if (this.net()) {
+      row.append(button('Back to lobby', () => this.actions.toLobby(), 'primary small'));
+      return p;
+    }
     row.append(button('Ride again', () => this.actions.restart(), 'primary small'));
     const next = MAP_ORDER[MAP_ORDER.indexOf(r.mapId) + 1];
     if (next && this.save.isMapUnlocked(next)) row.append(button(`Next: ${MAPS[next].name}`, () => this.actions.playMap(next), 'small'));
