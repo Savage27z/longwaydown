@@ -196,7 +196,10 @@ export class Game {
     };
     net.onLobby = refresh;
     net.onStart = (info) => void this.playOnline(info);
-    net.onGo = () => this.play?.netGo();
+    // Only the race being loaded for this room counts (a go can arrive mid-load: markReady replays it).
+    net.onGo = () => {
+      if (this.play?.online && this.state !== 'loading') this.play.netGo();
+    };
     net.onStates = (list) => this.play?.netStates(list);
     net.onFin = (id, time) => this.play?.netFin(id, time);
     net.onKo = (target, from) => this.play?.netKo(target, from);

@@ -40,6 +40,8 @@ export class NetSession {
   bots = true;
   /** In a race right now (lobby otherwise). */
   racing = false;
+  /** This race's go has happened (kept so a machine that finishes loading late still starts). */
+  started = false;
   onLobby: (() => void) | null = null;
   onStart: ((info: StartInfo) => void) | null = null;
   onGo: (() => void) | null = null;
@@ -195,6 +197,7 @@ export class NetSession {
   /** Host: start a race with this grid. Everyone loads, then `go` once all are on the grid. */
   start(info: StartInfo): void {
     this.racing = true;
+    this.started = false;
     this.ready.clear();
     this.broadcast({ t: 'start', info });
     this.onStart?.(info);
@@ -204,6 +207,8 @@ export class NetSession {
 
   /** Mark this machine loaded and on the grid (host counts itself too). */
   markReady(): void {
+    // Loaded after the go (slow machine, background tab): start straight away.
+    if (this.started) this.onGo?.();
     if (this.isHost) {
       this.ready.add(this.selfId);
       this.checkReady();
@@ -217,8 +222,8 @@ export class NetSession {
 
   private go(): void {
     window.clearTimeout(this.readyTimer);
-    if (!this.racing) return;
-    this.ready.clear();
+    if (!this.racing || this.started) return;
+    this.started = true;
     this.readyTimer = 0;
     this.broadcast({ t: 'go' });
     this.onGo?.();
@@ -252,9 +257,11 @@ export class NetSession {
         break;
       case 'start':
         this.racing = true;
+        this.started = false;
         this.onStart?.(m.info);
         break;
       case 'go':
+        this.started = true;
         this.onGo?.();
         break;
       case 'states':
