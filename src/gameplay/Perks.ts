@@ -1,4 +1,4 @@
-import { BOOST, NEAR_MISS, PICKUPS, TRICKS, type PickupKind } from '../config/stunts';
+import { BOOST, NEAR_MISS, PICKUPS, THROW, TRICKS, type PickupKind } from '../config/stunts';
 import type { VehicleId } from '../config/vehicles';
 import type { GameEvents } from '../core/Events';
 import type { LandInfo, RideModifiers } from '../vehicles/Vehicle';
@@ -28,6 +28,9 @@ export class RiderPerks {
   trickScore = 0;
   nearMisses = 0;
   pickups = 0;
+  /** Bottles / stones to throw (max THROW.max) and hits landed. */
+  ammo = 0;
+  knockouts = 0;
   private missCooldown = 0;
   private lastMiss = '';
 
@@ -40,6 +43,8 @@ export class RiderPerks {
     this.trickScore = 0;
     this.nearMisses = 0;
     this.pickups = 0;
+    this.ammo = 0;
+    this.knockouts = 0;
     this.missCooldown = 0;
     this.lastMiss = '';
   }
@@ -108,10 +113,11 @@ export class RiderPerks {
   pickup(kind: PickupKind): void {
     this.pickups++;
     if (kind === 'boost') this.gain(PICKUPS.boostFill);
+    else if (kind === 'bottle') this.ammo = Math.min(THROW.max, this.ammo + THROW.perPickup);
     else if (kind !== 'freeze') {
-      const dur = PICKUPS[kind];
-      this.buffs = this.buffs.filter((b) => b.id !== kind);
-      this.buffs.push({ id: kind, t: dur, dur });
+      const dur = PICKUPS[kind as BuffId];
+      this.buffs = this.buffs.filter((b) => b.id !== (kind as BuffId));
+      this.buffs.push({ id: kind as BuffId, t: dur, dur });
     }
     this.emit('rider:pickup', { kind });
   }

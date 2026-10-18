@@ -11,6 +11,7 @@ const UP = new THREE.Vector3(0, 1, 0);
 const TWO_PI = Math.PI * 2;
 const _m = new THREE.Matrix4();
 const _x = new THREE.Vector3();
+const _pv = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _e = new THREE.Euler();
 
@@ -32,6 +33,13 @@ export abstract class ArcadeVehicle extends Vehicle {
   trickPitch = 0;
   trickYaw = 0;
   grabTime = 0;
+  /** Air rotation rates (rad/s): they ease in and out instead of snapping. */
+  pitchVel = 0;
+  yawVel = 0;
+  /** Committed rotations finish themselves before touchdown (off for a fumbled air). */
+  assist = true;
+  /** Height above the body centre the air rotations pivot around: the rider's centre of mass (m). */
+  protected trickPivot = 0.45;
   maxHeight = 0;
   surface: SurfaceId = 'packed';
   /** Allow landing backwards (boards). */
@@ -91,6 +99,8 @@ export abstract class ArcadeVehicle extends Vehicle {
     this.trickPitch = 0;
     this.trickYaw = 0;
     this.grabTime = 0;
+    this.pitchVel = 0;
+    this.yawVel = 0;
     this.airTime = 0;
     this.lean = 0;
     this.jumpGrace = 0;
@@ -364,22 +374,41 @@ export abstract class ArcadeVehicle extends Vehicle {
   protected airStep(dt: number, input: VehicleInput, v: THREE.Vector3): void {
     const s = this.stats;
     this.heading = wrapAngle(this.heading - input.steer * s.airSteer * dt);
-    this.trickPitch += input.pitch * s.airPitchRate * dt;
-    this.trickYaw -= input.spin * s.airSpinRate * dt;
     if (input.trick) this.grabTime += dt;
-    // Landing assist near the ground: settle toward the nearest clean orientation.
-    if (this.airGroundDist < RIDING.landingAlignDistance) {
-      const k = RIDING.landingAssist;
-      if (Math.abs(input.pitch) < 0.1) this.trickPitch = damp(this.trickPitch, Math.round(this.trickPitch / TWO_PI) * TWO_PI, k, dt);
-      const yawStep = this.allowSwitch ? Math.PI : TWO_PI;
-      if (Math.abs(input.spin) < 0.1) this.trickYaw = damp(this.trickYaw, Math.round(this.trickYaw / yawStep) * yawStep, k, dt);
-    }
+    // Rotations: held input spins up smoothly; let go and a committed rotation (past a third)
+    // finishes itself in time for the landing, a small one swings back (Riders Republic's
+    // automatic landing). Time to touchdown from the current height and climb rate.
+    const g = 9.81 * s.gravityScale * RIDING.airGravityMul;
+    const h = Number.isFinite(this.airGroundDist) ? Math.max(0, this.airGroundDist - s.rideHeight) : 30;
+    const tLand = (v.y + Math.sqrt(Math.max(0, v.y * v.y + 2 * g * h))) / g;
+    if (Math.abs(input.pitch) > 0.1) this.pitchVel = damp(this.pitchVel, input.pitch * s.airPitchRate, 9, dt);
+    else this.pitchVel = this.settle(this.trickPitch, this.pitchVel, TWO_PI, s.airPitchRate, tLand, dt);
+    if (Math.abs(input.spin) > 0.1) this.yawVel = damp(this.yawVel, -input.spin * s.airSpinRate, 9, dt);
+    else this.yawVel = this.settle(this.trickYaw, this.yawVel, this.allowSwitch ? Math.PI : TWO_PI, s.airSpinRate, tLand, dt);
+    this.trickPitch += this.pitchVel * dt;
+    this.trickYaw += this.yawVel * dt;
     if (this.telemetry.boosting) {
       _x.set(Math.sin(this.heading), 0, Math.cos(this.heading));
       v.addScaledVector(_x, s.boostAccel * 0.5 * dt);
     }
     this.yawRate = 0;
     this.tuck = false;
+  }
+
+  /** Rate that carries a released rotation to a clean stop (a full turn, or back) by touchdown. */
+  private settle(angle: number, vel: number, step: number, maxRate: number, tLand: number, dt: number): number {
+    if (!this.assist) return damp(vel, 0, 1.5, dt);
+    const base = Math.floor(angle / step) * step;
+    const frac = (angle - base) / step;
+    let target: number;
+    if (Math.abs(vel) < 0.4) target = Math.round(angle / step) * step;
+    else if (vel > 0) target = frac > 0.33 ? base + step : base;
+    else target = frac < 0.67 ? base : base + step;
+    const remaining = target - angle;
+    const desired = Math.max(-maxRate * 1.5, Math.min(maxRate * 1.5, remaining / Math.max(0.12, tLand - 0.1)));
+    // Never crawl into the last few degrees.
+    const floor = Math.abs(remaining) > 0.02 ? Math.sign(remaining) * Math.min(Math.abs(remaining) * 6, 1.2) : 0;
+    return damp(vel, Math.abs(desired) < Math.abs(floor) ? floor : desired, 8, dt);
   }
 
   /** Returns false if the landing crashed (and wasn't absorbed). */
@@ -407,6 +436,8 @@ export abstract class ArcadeVehicle extends Vehicle {
     };
     this.trickPitch = 0;
     this.trickYaw = 0;
+    this.pitchVel = 0;
+    this.yawVel = 0;
     this.grabTime = 0;
     this.maxHeight = 0;
     if (reason) {
@@ -466,6 +497,12 @@ export abstract class ArcadeVehicle extends Vehicle {
     this.visualDrop = damp(this.visualDrop, target, 25, dt);
     _x.set(0, 1, 0).applyQuaternion(this.model.quaternion);
     this.model.position.addScaledVector(_x, -this.visualDrop);
+    // Flips and spins turn around the rider's centre of mass, not the wheels / board.
+    if (this.trickPivot > 0 && (this.trickPitch !== 0 || this.trickYaw !== 0)) {
+      _q.setFromEuler(_e.set(this.trickPitch, this.trickYaw, 0, 'YXZ')).invert();
+      _x.set(0, this.trickPivot, 0).applyQuaternion(_q).sub(_pv.set(0, this.trickPivot, 0)).applyQuaternion(this.model.quaternion);
+      this.model.position.add(_x);
+    }
     this.animate(dt);
   }
 

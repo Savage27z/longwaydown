@@ -55,7 +55,8 @@ export class Pickups {
       const pos = new THREE.Vector3();
       world.courseAt(s, lat, pos);
       pos.y += 1.3;
-      this.list.push({ kind: pick(), s, lat, pos, obj: null, phase: rng() * Math.PI * 2, taken: false });
+      // Every third pickup is a bottle crate, so everyone gets ammo early and often.
+      this.list.push({ kind: this.list.length % 3 === 1 ? 'bottle' : pick(), s, lat, pos, obj: null, phase: rng() * Math.PI * 2, taken: false });
     }
   }
 

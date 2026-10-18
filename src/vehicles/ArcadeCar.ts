@@ -51,6 +51,7 @@ export abstract class ArcadeCar extends ArcadeVehicle {
     super(id, physics, state);
     this.leanFactor = 0;
     this.canReverse = true;
+    this.trickPivot = 0.2;
     this.m = model;
     model.position.y = layout.modelLift;
     // Split the wheels from the body so the chassis can roll on its springs.

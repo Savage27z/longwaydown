@@ -22,6 +22,7 @@ export interface RunResults {
   crashes: number;
   nearMisses: number;
   bestCombo: number;
+  knockouts: number;
   splits: number[];
   previousBest: number | null;
   newRecord: boolean;
@@ -49,6 +50,7 @@ export class Run {
   crashes = 0;
   nearMisses = 0;
   bestCombo = 0;
+  knockouts = 0;
   distance = 0;
   /** Seconds the timer is frozen for (Time Freeze buff). */
   freeze = 0;
@@ -78,6 +80,9 @@ export class Run {
         if (this.state !== 'running') return;
         this.trickScore += points;
         this.bestCombo = Math.max(this.bestCombo, points);
+      }),
+      events.on('rider:hit', ({ byYou, blocked }) => {
+        if (this.state === 'running' && byYou && !blocked) this.knockouts++;
       }),
       events.on('rider:nearMiss', ({ points }) => {
         if (this.state !== 'running') return;
@@ -123,6 +128,7 @@ export class Run {
     this.crashes = 0;
     this.nearMisses = 0;
     this.bestCombo = 0;
+    this.knockouts = 0;
     this.distance = 0;
     this.freeze = 0;
     this.checkpoints.reset();
@@ -193,6 +199,7 @@ export class Run {
       crashes: this.crashes,
       nearMisses: this.nearMisses,
       bestCombo: this.bestCombo,
+      knockouts: this.knockouts,
       splits: [...this.checkpoints.splits],
       previousBest: prev,
       newRecord: prev === null || this.total < prev,

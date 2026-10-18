@@ -20,10 +20,12 @@ export interface VehicleInput {
   jumpHeld: boolean;
   boost: boolean;
   trick: boolean;
+  /** Throw a bottle / stone this step. */
+  throwPressed: boolean;
 }
 
 export function emptyInput(): VehicleInput {
-  return { throttle: 0, brake: 0, steer: 0, pitch: 0, spin: 0, jumpPressed: false, jumpHeld: false, boost: false, trick: false };
+  return { throttle: 0, brake: 0, steer: 0, pitch: 0, spin: 0, jumpPressed: false, jumpHeld: false, boost: false, trick: false, throwPressed: false };
 }
 
 /** Modifiers from buffs / boost, applied by the vehicle each step. */

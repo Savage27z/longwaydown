@@ -16,8 +16,9 @@ import { swapVehicle } from '../vehicles/VehicleSwitcher';
 import { defaultMods, emptyInput, type TransferState, type Vehicle, type VehicleContext, type VehicleSnapshot } from '../vehicles/Vehicle';
 import { Character, makePose } from './Character';
 import { LocalInput, type InputSource } from './InputSource';
+import { TrickPose } from './TrickPose';
 import { RiderPerks, type PerkEvent } from '../gameplay/Perks';
-import { NEAR_MISS } from '../config/stunts';
+import { NEAR_MISS, THROW } from '../config/stunts';
 import { Ragdoll } from './Ragdoll';
 import { RiderDynamics, type MotionFrame } from './RiderDynamics';
 import { WingsuitMembrane } from './WingsuitMembrane';
@@ -90,6 +91,10 @@ export class PlayerController {
   headVisible = true;
   /** Off for far riders: only the vehicle is placed, the character keeps its last pose. */
   detail = true;
+  /** Set when this rider throws this step (the race's throwables consume it). */
+  wantsThrow = false;
+  private throwCooldown = 0;
+  private readonly trickPose = new TrickPose();
   private pose = makePose();
   private ragdoll: Ragdoll | null = null;
   private crashTimer = 0;
@@ -215,6 +220,13 @@ export class PlayerController {
     return false;
   }
 
+  /** Hit by something thrown: off the vehicle (a crash) unless a Shield takes it. Returns true if knocked off. */
+  knockOut(reason: string): boolean {
+    if (this.state !== 'riding' || this.ghost) return false;
+    if (this.perks.absorbCrash()) return false;
+    return !this.onCrash(reason);
+  }
+
   /** Put the rider back on the course line at distance s (`lat` m to its right). */
   respawnAt(s: number, speed = RIDING.respawnSpeed, reason = 'respawn', lat = 0): void {
     this.endRagdoll();
@@ -311,6 +323,12 @@ export class PlayerController {
       i.steer = 0;
       i.jumpPressed = false;
       i.boost = false;
+      i.throwPressed = false;
+    }
+    if (i.throwPressed && this.perks.ammo > 0 && this.throwCooldown <= 0) {
+      this.perks.ammo--;
+      this.wantsThrow = true;
+      this.throwCooldown = THROW.cooldown;
     }
     if (this.autoBrake) {
       i.throttle = 0;
@@ -328,6 +346,7 @@ export class PlayerController {
 
   fixedUpdate(dt: number): void {
     this.simTime += dt;
+    this.throwCooldown = Math.max(0, this.throwCooldown - dt);
     if (this.ghost) {
       this.ghostStep(dt);
       return;
@@ -428,6 +447,9 @@ export class PlayerController {
     if (this.state === 'riding') {
       this.vehicle.pose(this.pose, this.input);
       this.motion.apply(this.pose, dt, this.motionFrame());
+      const air = this.vehicle as unknown as { pitchVel?: number; yawVel?: number };
+      const st = this.vehicle.stats;
+      this.trickPose.apply(this.pose, dt, this.vehicle.id, !this.vehicle.telemetry.grounded, air.pitchVel ?? 0, air.yawVel ?? 0, st.airPitchRate, st.airSpinRate);
       // Running is a fast cycle: follow it tightly.
       this.character.update(dt, this.pose, this.vehicle.id === 'onFoot' ? 30 : 14);
     } else if (this.ragdoll) {

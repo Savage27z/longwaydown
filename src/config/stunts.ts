@@ -44,7 +44,29 @@ export const NEAR_MISS = {
   cooldown: 0.8,
 };
 
-export type PickupKind = 'boost' | 'freeze' | 'grip' | 'speed' | 'lowGravity' | 'shield';
+export type PickupKind = 'boost' | 'freeze' | 'grip' | 'speed' | 'lowGravity' | 'shield' | 'bottle';
+
+/** Thrown bottles and stones (Downhill Domination style): ammo, range, flight and homing. */
+export const THROW = {
+  /** A bottle pickup gives this many; never carry more. */
+  perPickup: 3,
+  max: 3,
+  /** Targets: riders ahead within this range (m) and cone half-angle (rad). */
+  range: 40,
+  cone: 0.8,
+  /** Lob time to the target (s), speed of an untargeted throw (m/s), gravity on the throw. */
+  flight: 0.7,
+  speed: 22,
+  gravity: 12,
+  /** Homing strength (1/s) and hit radius around the target's torso (m). */
+  homing: 7,
+  hitRadius: 1.7,
+  maxFlight: 2.5,
+  /** Minimum seconds between one rider's throws. */
+  cooldown: 1,
+  /** Bots: chance per second to throw when a target is lined up (scaled by skill / difficulty). */
+  botRate: 0.6,
+};
 
 /** Pickups along the trail and the buffs they give. */
 export const PICKUPS = {
@@ -56,7 +78,7 @@ export const PICKUPS = {
   featureClear: 35,
   radius: 2.6,
   /** Kinds and their weights. */
-  weights: { boost: 5, freeze: 1, grip: 1.5, speed: 1.5, lowGravity: 1, shield: 1 } as Record<PickupKind, number>,
+  weights: { boost: 5, freeze: 1, grip: 1.5, speed: 1.5, lowGravity: 1, shield: 1, bottle: 1 } as Record<PickupKind, number>,
   boostFill: 0.5,
   freezeSeconds: 4,
   /** Buff durations (s) and strengths. */
@@ -77,4 +99,5 @@ export const PICKUP_STYLE: Record<PickupKind, { color: string; label: string; gl
   speed: { color: '#ff5a1f', label: 'Speed', glyph: '»' },
   lowGravity: { color: '#b06cff', label: 'Low Gravity', glyph: '☾' },
   shield: { color: '#ffd23f', label: 'Shield', glyph: '⛨' },
+  bottle: { color: '#7ddc5a', label: 'Bottles', glyph: '🍾' },
 };

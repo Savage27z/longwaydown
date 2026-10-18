@@ -510,3 +510,21 @@ Every rider, you and the bots, has a `RiderPerks` (`gameplay/Perks.ts`): a boost
   - The test player finished 2nd, 3 s behind 1st, with the field at 784–872 s.
   - The player collected 38 pickups, scored 11.6k trick points and had a best combo of 1,188.
   - Bots landed 14–55 tricks each.
+
+### Phase 6 feel pass: tricks that look right, and throwing bottles
+**Tricks** (references: Riders Republic's automatic landing and style moves):
+- Air rotations ease in and out instead of snapping on and off.
+- Let go part-way and a committed rotation (past a third of a turn) finishes itself in time for touchdown. A smaller one swings back to clean. This uses the predicted time to land.
+- Fumbled bot airs get no help, so those still crash.
+- Flips and spins pivot around the rider's centre of mass (0.45 m above the body; 0.2 m for cars), not the wheels.
+- `TrickPose` layers body language on top: riders tuck into rotations (hips down, chest over the bars or board, arms in) and turn their head into a spin.
+- The bike grab is a real Superman (hands on the bars, body flat, legs stretched behind) instead of the T-pose no-hander.
+
+**Throwables** (reference: Downhill Domination's homing water bottles):
+- **Pickup:** a Bottles pickup (every third pickup on the trail) gives 3 bottles. You can carry at most 3.
+- **Throwing:** F (keyboard) or D-pad up (gamepad) lobs a bottle or stone at the nearest rider ahead, within 40 m in a forward cone. It leads them and homes in. With nobody lined up it flies straight ahead and can still clip someone.
+- **Hits:** a hit knocks the rider off, with ragdoll and crash penalty. A Shield blocks it.
+- **Bots:** they throw when someone is lined up, more often the better they are.
+- **HUD:** an ammo counter (bottles plus "F to throw"), and pop-ups for "HIT Mila!", "Knocked off by Kai" and shield blocks.
+- **Results:** knockouts are counted.
+- **Headless 300 s race:** 24 throws, 14 hits (58% with homing), and you were knocked off twice.

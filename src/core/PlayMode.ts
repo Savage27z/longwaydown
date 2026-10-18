@@ -25,6 +25,8 @@ import { vehicleSlots } from '../vehicles/slots';
 import { mapBiome } from '../vehicles/VehicleSwitcher';
 import { World } from '../world/World';
 import { Pickups, type PickupRider } from '../world/Pickups';
+import { Throwables, type ThrowRider } from '../gameplay/Throwables';
+import { THROW } from '../config/stunts';
 import { events } from './Events';
 import type { Game, GameMode, ProgressFn } from './Game';
 import type { SaveData } from './Save';
@@ -40,6 +42,8 @@ export class PlayMode implements GameMode {
   readonly hud: HUD;
   private tags: NameTags;
   private pickups: Pickups;
+  private throwables: Throwables;
+  private throwRiders: ThrowRider[] = [];
   private pickupRiders: PickupRider[] = [];
   private tagItems: NameTagItem[] = [];
   readonly dev = { flyCam: false, orbitCam: false };
@@ -81,6 +85,12 @@ export class PlayMode implements GameMode {
     this.run.difficultyLabel = () => DIFFICULTY[this.race.difficulty].label;
     this.pickups = new Pickups(world, game.renderer.worldRoot);
     this.pickupRiders = this.race.entries.map((e) => ({ id: e.id, rider: e.rider, local: e.kind === 'local' }));
+    this.throwables = new Throwables(game.renderer.scene);
+    this.throwRiders = this.race.entries.map((e) => ({ id: e.id, name: e.name, rider: e.rider, local: e.kind === 'local' }));
+    this.throwables.onHit = (from, to, blocked) => {
+      if (!blocked) from.rider.perks.knockouts++;
+      events.emit('rider:hit', { from: from.name, to: to.name, byYou: from.local, onYou: to.local, blocked });
+    };
     this.target = {
       position: new THREE.Vector3(),
       velocity: new THREE.Vector3(),
@@ -145,6 +155,7 @@ export class PlayMode implements GameMode {
     this.player.frozen = true;
     this.race.reset(this.game.save.data.settings.difficulty);
     this.pickups.reset();
+    this.throwables.clear();
     this.run.begin(false);
     this.hud.setVisible(true);
     this.chase.snap();
@@ -212,6 +223,7 @@ export class PlayMode implements GameMode {
     this.race.update(realDt, simDt, alpha, run, this.game.renderer.camera.position);
     const standings = this.race.standings();
     this.updateTags(standings);
+    this.updateThrows(simDt, run.state === 'running');
     this.pickups.update(simDt, this.world.origin.toGlobal(this.game.renderer.camera.position, this.camGlobal), run.state === 'running' ? this.pickupRiders : []);
 
     this.player.focusLocal(this.focus);
@@ -224,6 +236,7 @@ export class PlayMode implements GameMode {
       altitude: this.global.y,
       vehicle: this.player.vehicle.id,
       boost: this.player.perks.boost,
+      ammo: this.player.perks.ammo,
       buffs: this.player.perks.buffs,
       combo: this.player.perks.combo.tricks > 0 ? { mult: this.player.perks.combo.mult, value: this.player.perks.combo.value, t: this.player.perks.combo.timer } : null,
       flight: tel.flightMeter,
@@ -232,6 +245,26 @@ export class PlayMode implements GameMode {
       pace: this.race.local.pace,
     });
     this.world.update(realDt, this.focus, this.player.progress.result.s);
+  }
+
+  /** Throws: launch what riders asked for, let bots decide, fly the projectiles. */
+  private updateThrows(dt: number, racing: boolean): void {
+    const riders = this.throwRiders;
+    if (racing) {
+      for (const e of this.race.bots) {
+        const d = e.driver;
+        if (!d || e.rider.perks.ammo <= 0 || e.rider.ghost || e.rider.state !== 'riding') continue;
+        const from = riders.find((r) => r.id === e.id)!;
+        if (!this.throwables.pickTarget(from, riders)) continue;
+        if (Math.random() < THROW.botRate * (0.5 + d.skill.level) * dt) d.throwNow = true;
+      }
+    }
+    for (const r of riders) {
+      if (!r.rider.wantsThrow) continue;
+      r.rider.wantsThrow = false;
+      this.throwables.throw(r, riders);
+    }
+    this.throwables.update(dt, riders, (x, z) => this.world.groundLocal(x, z));
   }
 
   /** Name tags over the bots near the camera. */
@@ -381,6 +414,7 @@ export class PlayMode implements GameMode {
     this.run.dispose();
     this.race.dispose();
     this.pickups.dispose();
+    this.throwables.dispose();
     this.tags.dispose();
     this.hud.dispose();
     this.toast.dispose();

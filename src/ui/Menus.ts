@@ -140,6 +140,7 @@ export class Menus {
         ${stat('Pickups', String(r.pickups))}
         ${stat('Best combo', r.bestCombo.toLocaleString())}
         ${stat('Near misses', String(r.nearMisses))}
+        ${stat('Knockouts', String(r.knockouts))}
         ${stat('Crashes', `${r.crashes} (+${r.penalties.toFixed(0)} s)`)}
       </div>
       <div class="row"></div>`;
@@ -165,6 +166,7 @@ export class Menus {
         <div>${key('boost')}</div><div>Boost (sprint)</div>
         <div>${key('pitchForward')}${key('pitchBack')}${key('spinLeft')}${key('spinRight')}</div><div>Flip and spin in the air</div>
         <div>${key('trick')}</div><div>Grab (hold in the air)</div>
+        <div>${key('throw')}</div><div>Throw a bottle / stone at the rider ahead (from Bottle pickups, max 3)</div>
         <div>${key('respawn')}</div><div>Back to the last checkpoint</div>
         <div>${key('camera')}</div><div>Switch camera (chase / far / first person)</div>
         <div>${key('pause')}</div><div>Pause</div>

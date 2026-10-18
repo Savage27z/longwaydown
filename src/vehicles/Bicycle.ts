@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { createModel, type ModelOptions } from '../models/ModelLoader';
 import { BIKE_DIMS } from '../models/procedural/bicycle';
-import { setArms, type PoseTargets } from '../player/Character';
+import type { PoseTargets } from '../player/Character';
 import { clamp, damp } from '../utils/math';
 import { ArcadeVehicle } from './ArcadeVehicle';
 import type { TransferState, VehicleInput } from './Vehicle';
@@ -126,10 +126,21 @@ export class Bicycle extends ArcadeVehicle {
     out.head.set(-(hipPitch + spinePitch + chestPitch) * 0.85, -this.steerVis * 0.5, this.lean * 0.15);
     const grab = !this.grounded && input.trick;
     if (grab) {
-      // "No-hander": arms out wide.
-      out.handL = null;
-      out.handR = null;
-      setArms(out, 1.3, 1.2, 0.2);
+      // Superman: hands stay on the bars, legs kick off the pedals and stretch out behind,
+      // body flat over the top tube.
+      out.handL = this.local('gripL', out.handL ?? new THREE.Vector3()).add(WRIST_OFFSET);
+      out.handR = this.local('gripR', out.handR ?? new THREE.Vector3()).add(WRIST_OFFSET);
+      out.hips.set(0, seat.y + 0.22, seat.z - 0.18);
+      out.hipsRot.set(1.15, 0, 0);
+      out.spine.set(0.25, 0, 0);
+      out.chest.set(0.05, 0, 0);
+      out.head.set(-1.1, 0, 0);
+      out.footL.set(0.14, seat.y + 0.32, seat.z - 0.85);
+      out.footR.set(-0.14, seat.y + 0.3, seat.z - 0.8);
+      out.kneePole.set(0.1, -1, -0.3);
+      out.elbowPole.set(0.8, -0.35, -0.45);
+      out.footYaw = 0;
+      return out;
     } else {
       // Wrists sit just behind and above the grips.
       out.handL = this.local('gripL', out.handL ?? new THREE.Vector3()).add(WRIST_OFFSET);

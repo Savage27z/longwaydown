@@ -938,3 +938,20 @@ input[type='range'] {
   height: 3px;
   background: var(--c);
 }
+.hud-buffs .ammo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px 4px 6px;
+  border-radius: 8px;
+  background: var(--glass);
+  font-size: 18px;
+}
+.hud-buffs .ammo span {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  opacity: 0.75;
+}

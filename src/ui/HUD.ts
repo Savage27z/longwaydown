@@ -25,6 +25,8 @@ export interface HudView {
   pace: number;
   /** Active buffs and the open trick combo (null when there's none). */
   buffs: Buff[];
+  /** Bottles / stones in hand. */
+  ammo: number;
   combo: { mult: number; value: number; t: number } | null;
 }
 
@@ -126,6 +128,10 @@ export class HUD {
       events.on('trick:bank', (t) => this.pop('COMBO', `+${t.points.toLocaleString()}`, 'bank')),
       events.on('trick:lost', (t) => this.pop('COMBO LOST', `−${t.points.toLocaleString()}`, 'lost')),
       events.on('rider:nearMiss', (t) => this.pop('Near miss', `+${t.points}`, 'miss')),
+      events.on('rider:hit', (h) => {
+        if (h.byYou) this.pop(h.blocked ? `${h.to} blocked it` : `HIT ${h.to}!`, h.blocked ? '⛨' : '💥', h.blocked ? 'miss' : 'bank');
+        else if (h.onYou) this.pop(h.blocked ? 'Shield blocked' : `Knocked off by ${h.from}`, h.blocked ? '⛨' : '', h.blocked ? 'miss' : 'lost');
+      }),
       events.on('rider:pickup', ({ kind }) => this.pop(PICKUP_STYLE[kind].label, PICKUP_STYLE[kind].glyph, 'pickup', PICKUP_STYLE[kind].color)),
       events.on('run:finish', () => this.showBanner('FINISH!', '')),
       events.on('run:state', ({ state }) => {
@@ -292,7 +298,8 @@ export class HUD {
         return `<div class="buff" style="--c:${st.color}"><b>${st.glyph}</b><span>${st.label}</span><i style="width:${Math.round((b.t / b.dur) * 100)}%"></i></div>`;
       })
       .join('');
-    if (html !== this.buffHtml) this.buffs.innerHTML = this.buffHtml = html;
+    const ammo = v.ammo > 0 ? `<div class="ammo">${'<b>🍾</b>'.repeat(v.ammo)}<span>F to throw</span></div>` : '';
+    if (html + ammo !== this.buffHtml) this.buffs.innerHTML = this.buffHtml = html + ammo;
     if (v.combo) {
       this.comboEl.classList.add('show');
       this.comboEl.innerHTML = `<b>x${v.combo.mult}</b> ${v.combo.value.toLocaleString()}<i style="width:${Math.round((v.combo.t / 4) * 100)}%"></i>`;

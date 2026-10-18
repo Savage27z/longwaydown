@@ -42,6 +42,8 @@ export class BotDriver implements InputSource {
   boostMul = 1;
   /** Seconds until this bot may switch vehicle again. */
   switchCooldown = 0;
+  /** Set by the race when this bot decides to throw at someone lined up ahead. */
+  throwNow = false;
   private t = 0;
   private rng: Rng;
   private slip: Mistake | null = null;
@@ -70,6 +72,8 @@ export class BotDriver implements InputSource {
     i.jumpHeld = false;
     i.boost = false;
     i.trick = false;
+    i.throwPressed = this.throwNow;
+    this.throwNow = false;
     const p = this.rider;
     if (!p) return;
     const dt = 1 / 60;
@@ -120,6 +124,8 @@ export class BotDriver implements InputSource {
       this.wasGrounded = false;
       this.fumble = this.rng() < BOT_MISTAKES.fumbleChance * (1.2 - this.skill.level) * this.mistakeMul ? 0.35 + this.rng() * 0.5 : 0;
       if (this.fumble > 0) this.mistakes++;
+      // A fumbled air gets no help squaring up for the landing.
+      (p.vehicle as unknown as { assist: boolean }).assist = this.fumble <= 0;
       // Otherwise maybe a trick (it feeds the boost meter): a 360, or a backflip off a big one.
       this.trick = null;
       const h = p.heightAboveGround();
@@ -128,7 +134,10 @@ export class BotDriver implements InputSource {
         this.trickDir = this.rng() < 0.5 ? -1 : 1;
       }
     }
-    if (tel.grounded) this.trick = null;
+    if (tel.grounded) {
+      this.trick = null;
+      (p.vehicle as unknown as { assist: boolean }).assist = true;
+    }
     if (!tel.grounded && this.fumble > 0) {
       this.fumble -= dt;
       i.pitch = this.skill.seed > 5 ? 1 : -1;

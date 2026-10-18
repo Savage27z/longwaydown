@@ -73,6 +73,8 @@ export interface GameEvents {
   'trick:lost': { points: number };
   'rider:nearMiss': { points: number };
   'rider:pickup': { kind: PickupKind };
+  /** A throw landed: names of thrower and target, whether you were involved, and if a shield blocked it. */
+  'rider:hit': { from: string; to: string; byYou: boolean; onYou: boolean; blocked: boolean };
 }
 
 export const events = new EventBus<GameEvents>();

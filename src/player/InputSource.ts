@@ -36,5 +36,6 @@ export class LocalInput implements InputSource {
     i.jumpHeld = inp.isDown('jump');
     i.boost = inp.isDown('boost');
     i.trick = inp.isDown('trick');
+    i.throwPressed = inp.stepPressed('throw');
   }
 }
