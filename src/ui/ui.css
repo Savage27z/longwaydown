@@ -838,3 +838,103 @@ input[type='range'] {
   opacity: 0.7;
   margin-right: 4px;
 }
+
+/* ---------- Tricks, combos, buffs ---------- */
+.hud-tricks {
+  margin-top: 18px;
+  text-align: center;
+}
+.hud-tricks .combo {
+  display: inline-block;
+  position: relative;
+  padding: 4px 14px 6px;
+  border-radius: 8px;
+  background: var(--glass);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 22px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.hud-tricks .combo.show {
+  opacity: 1;
+}
+.hud-tricks .combo b {
+  color: var(--accent-2);
+}
+.hud-tricks .combo i {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--accent-2);
+  border-radius: 2px;
+}
+.hud-tricks .pops {
+  margin-top: 6px;
+}
+.hud-tricks .pop {
+  font-weight: 900;
+  font-style: italic;
+  font-size: 18px;
+  animation: pop-up 1.8s ease-out forwards;
+}
+.hud-tricks .pop em {
+  font-style: normal;
+  color: var(--accent-2);
+}
+.hud-tricks .pop.miss em {
+  color: var(--cool);
+}
+.hud-tricks .pop.lost {
+  color: var(--bad);
+}
+.hud-tricks .pop.bank {
+  font-size: 22px;
+  color: var(--good);
+}
+@keyframes pop-up {
+  0% { opacity: 0; transform: translateY(8px) scale(0.9); }
+  12% { opacity: 1; transform: translateY(0) scale(1.05); }
+  70% { opacity: 1; transform: translateY(-4px) scale(1); }
+  100% { opacity: 0; transform: translateY(-14px); }
+}
+.hud-buffs {
+  position: absolute;
+  left: 22px;
+  bottom: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hud-buffs .buff {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 150px;
+  padding: 4px 10px 6px 6px;
+  border-radius: 8px;
+  background: var(--glass);
+  font-weight: 800;
+  font-size: 13px;
+  overflow: hidden;
+}
+.hud-buffs .buff b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--c);
+  color: var(--ink);
+  text-shadow: none;
+}
+.hud-buffs .buff i {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--c);
+}

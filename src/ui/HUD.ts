@@ -2,6 +2,8 @@ import { RUN } from '../config/gameplay';
 import { VEHICLES, type VehicleId } from '../config/vehicles';
 import { events } from '../core/Events';
 import type { Standing } from '../gameplay/Race';
+import type { Buff } from '../gameplay/Perks';
+import { PICKUP_STYLE } from '../config/stunts';
 import type { CourseData } from '../world/CourseGenerator';
 import { formatTime } from '../utils/math';
 import { VEHICLE_ICONS } from './icons';
@@ -21,6 +23,9 @@ export interface HudView {
   /** Race standings (null in a solo run) and the local rider's pace for time gaps (m/s). */
   standings: Standing[] | null;
   pace: number;
+  /** Active buffs and the open trick combo (null when there's none). */
+  buffs: Buff[];
+  combo: { mult: number; value: number; t: number } | null;
 }
 
 const ORDINAL = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`;
@@ -52,6 +57,9 @@ export class HUD {
   readonly tricks: HTMLDivElement;
   private hint: HTMLDivElement;
   private lastVehicle: VehicleId | null = null;
+  private comboEl: HTMLDivElement;
+  private pops: HTMLDivElement;
+  private buffHtml = '';
   private subTimer = 0;
   private bannerTimer = 0;
   private countTimer = 0;
@@ -98,6 +106,11 @@ export class HUD {
     this.banner = q('.hud-banner');
     this.buffs = q('.hud-buffs');
     this.tricks = q('.hud-tricks');
+    this.comboEl = document.createElement('div');
+    this.comboEl.className = 'combo';
+    this.pops = document.createElement('div');
+    this.pops.className = 'pops';
+    this.tricks.append(this.comboEl, this.pops);
     this.hint = q('.hud-hint');
     this.buildStrip();
 
@@ -109,6 +122,11 @@ export class HUD {
       }),
       events.on('run:penalty', (p) => this.showSub(`+${p.seconds.toFixed(1)}s ${p.reason}`, 'bad')),
       events.on('player:crash', () => this.showBanner('WIPEOUT', '')),
+      events.on('trick:land', (t) => this.pop(`${t.name}`, `+${t.points}`, 'trick')),
+      events.on('trick:bank', (t) => this.pop('COMBO', `+${t.points.toLocaleString()}`, 'bank')),
+      events.on('trick:lost', (t) => this.pop('COMBO LOST', `−${t.points.toLocaleString()}`, 'lost')),
+      events.on('rider:nearMiss', (t) => this.pop('Near miss', `+${t.points}`, 'miss')),
+      events.on('rider:pickup', ({ kind }) => this.pop(PICKUP_STYLE[kind].label, PICKUP_STYLE[kind].glyph, 'pickup', PICKUP_STYLE[kind].color)),
       events.on('run:finish', () => this.showBanner('FINISH!', '')),
       events.on('run:state', ({ state }) => {
         this.hint.textContent = state === 'intro' ? 'Press Space to skip' : '';
@@ -232,6 +250,7 @@ export class HUD {
       this.flightLabel.textContent = v.vehicle === 'roadster' ? 'THRUSTERS' : 'FLIGHT';
     }
     this.drawStrip(v.progressS, v.checkpointsReached, v.standings);
+    this.drawPerks(v);
     this.drawBoard(v.standings, v.pace);
 
     this.subTimer -= dt;
@@ -263,6 +282,32 @@ export class HUD {
       .map((r) => `<div class="row${r === me ? ' me' : ''}"><b>${r.position}</b><i style="background:${r.color}"></i><span>${r.name}</span><em>${gap(r)}</em></div>`)
       .join('');
     if (html !== this.boardHtml) this.board.innerHTML = this.boardHtml = html;
+  }
+
+  /** Buff icons with time left, and the open combo. */
+  private drawPerks(v: HudView): void {
+    const html = v.buffs
+      .map((b) => {
+        const st = PICKUP_STYLE[b.id];
+        return `<div class="buff" style="--c:${st.color}"><b>${st.glyph}</b><span>${st.label}</span><i style="width:${Math.round((b.t / b.dur) * 100)}%"></i></div>`;
+      })
+      .join('');
+    if (html !== this.buffHtml) this.buffs.innerHTML = this.buffHtml = html;
+    if (v.combo) {
+      this.comboEl.classList.add('show');
+      this.comboEl.innerHTML = `<b>x${v.combo.mult}</b> ${v.combo.value.toLocaleString()}<i style="width:${Math.round((v.combo.t / 4) * 100)}%"></i>`;
+    } else this.comboEl.classList.remove('show');
+  }
+
+  /** A short pop-up line (trick names, near misses, pickups) that floats up and fades. */
+  private pop(title: string, value: string, cls: string, color = ''): void {
+    const el = document.createElement('div');
+    el.className = `pop ${cls}`;
+    if (color) el.style.color = color;
+    el.innerHTML = `${title} <em>${value}</em>`;
+    this.pops.prepend(el);
+    while (this.pops.children.length > 4) this.pops.lastElementChild!.remove();
+    setTimeout(() => el.remove(), 1800);
   }
 
   private showSub(text: string, cls: 'good' | 'bad'): void {

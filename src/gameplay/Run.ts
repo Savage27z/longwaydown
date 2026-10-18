@@ -3,6 +3,7 @@ import type { MapId } from '../config/maps';
 import { events } from '../core/Events';
 import type { BestTime } from '../core/Save';
 import { Checkpoints } from './Checkpoints';
+import { PICKUPS } from '../config/stunts';
 import type { Standing } from './Race';
 
 export type RunState = 'idle' | 'intro' | 'countdown' | 'running' | 'finished';
@@ -19,6 +20,8 @@ export interface RunResults {
   trickScore: number;
   pickups: number;
   crashes: number;
+  nearMisses: number;
+  bestCombo: number;
   splits: number[];
   previousBest: number | null;
   newRecord: boolean;
@@ -44,6 +47,8 @@ export class Run {
   trickScore = 0;
   pickups = 0;
   crashes = 0;
+  nearMisses = 0;
+  bestCombo = 0;
   distance = 0;
   /** Seconds the timer is frozen for (Time Freeze buff). */
   freeze = 0;
@@ -68,6 +73,21 @@ export class Run {
         if (this.state !== 'running') return;
         this.crashes++;
         this.addPenalty(e.penalty, e.reason);
+      }),
+      events.on('trick:bank', ({ points }) => {
+        if (this.state !== 'running') return;
+        this.trickScore += points;
+        this.bestCombo = Math.max(this.bestCombo, points);
+      }),
+      events.on('rider:nearMiss', ({ points }) => {
+        if (this.state !== 'running') return;
+        this.nearMisses++;
+        this.trickScore += points;
+      }),
+      events.on('rider:pickup', ({ kind }) => {
+        if (this.state !== 'running') return;
+        this.pickups++;
+        if (kind === 'freeze') this.freeze += PICKUPS.freezeSeconds;
       }),
       events.on('player:land', (l) => {
         if (this.state !== 'running') return;
@@ -101,6 +121,8 @@ export class Run {
     this.trickScore = 0;
     this.pickups = 0;
     this.crashes = 0;
+    this.nearMisses = 0;
+    this.bestCombo = 0;
     this.distance = 0;
     this.freeze = 0;
     this.checkpoints.reset();
@@ -169,6 +191,8 @@ export class Run {
       trickScore: this.trickScore,
       pickups: this.pickups,
       crashes: this.crashes,
+      nearMisses: this.nearMisses,
+      bestCombo: this.bestCombo,
       splits: [...this.checkpoints.splits],
       previousBest: prev,
       newRecord: prev === null || this.total < prev,

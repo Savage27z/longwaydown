@@ -24,6 +24,7 @@ import { VehicleWheel } from '../ui/VehicleWheel';
 import { vehicleSlots } from '../vehicles/slots';
 import { mapBiome } from '../vehicles/VehicleSwitcher';
 import { World } from '../world/World';
+import { Pickups, type PickupRider } from '../world/Pickups';
 import { events } from './Events';
 import type { Game, GameMode, ProgressFn } from './Game';
 import type { SaveData } from './Save';
@@ -38,10 +39,13 @@ export class PlayMode implements GameMode {
   readonly race: Race;
   readonly hud: HUD;
   private tags: NameTags;
+  private pickups: Pickups;
+  private pickupRiders: PickupRider[] = [];
   private tagItems: NameTagItem[] = [];
   readonly dev = { flyCam: false, orbitCam: false };
   phase: 'menu' | 'run' = 'menu';
   private focus = new THREE.Vector3();
+  private camGlobal = new THREE.Vector3();
   private global = new THREE.Vector3();
   private offs: (() => void)[] = [];
   private target: CameraTarget;
@@ -75,6 +79,8 @@ export class PlayMode implements GameMode {
     this.race = new Race(game, world, this.player, this.spawnS, props.finishS, world.course.checkpoints);
     this.run.standings = (time) => this.race.results(time);
     this.run.difficultyLabel = () => DIFFICULTY[this.race.difficulty].label;
+    this.pickups = new Pickups(world, game.renderer.worldRoot);
+    this.pickupRiders = this.race.entries.map((e) => ({ id: e.id, rider: e.rider, local: e.kind === 'local' }));
     this.target = {
       position: new THREE.Vector3(),
       velocity: new THREE.Vector3(),
@@ -138,6 +144,7 @@ export class PlayMode implements GameMode {
     this.player.respawnAt(this.spawnS, 0, 'start', this.race.playerLat);
     this.player.frozen = true;
     this.race.reset(this.game.save.data.settings.difficulty);
+    this.pickups.reset();
     this.run.begin(false);
     this.hud.setVisible(true);
     this.chase.snap();
@@ -205,6 +212,7 @@ export class PlayMode implements GameMode {
     this.race.update(realDt, simDt, alpha, run, this.game.renderer.camera.position);
     const standings = this.race.standings();
     this.updateTags(standings);
+    this.pickups.update(simDt, this.world.origin.toGlobal(this.game.renderer.camera.position, this.camGlobal), run.state === 'running' ? this.pickupRiders : []);
 
     this.player.focusLocal(this.focus);
     this.world.origin.toGlobal(this.focus, this.global);
@@ -215,7 +223,9 @@ export class PlayMode implements GameMode {
       progressS: this.player.progress.result.s,
       altitude: this.global.y,
       vehicle: this.player.vehicle.id,
-      boost: -1,
+      boost: this.player.perks.boost,
+      buffs: this.player.perks.buffs,
+      combo: this.player.perks.combo.tricks > 0 ? { mult: this.player.perks.combo.mult, value: this.player.perks.combo.value, t: this.player.perks.combo.timer } : null,
       flight: tel.flightMeter,
       checkpointsReached: run.checkpoints.last + 1,
       standings,
@@ -370,6 +380,7 @@ export class PlayMode implements GameMode {
     this.game.loop.timeScale = 1;
     this.run.dispose();
     this.race.dispose();
+    this.pickups.dispose();
     this.tags.dispose();
     this.hud.dispose();
     this.toast.dispose();

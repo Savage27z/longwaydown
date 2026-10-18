@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BOT_GARAGES, BOT_LEVELS, BOT_MISTAKES, BOT_NAMES, BOT_PAINTS, BOT_SWITCH, DIFFICULTY, RACE, type Difficulty } from '../config/race';
 import { RIDING } from '../config/vehicles';
+import { NEAR_MISS, PICKUPS } from '../config/stunts';
 import { MAPS } from '../config/maps';
 import { OUTFITS, type OutfitId, type RiderLook } from '../config/riders';
 import type { VehicleId } from '../config/vehicles';
@@ -108,7 +109,10 @@ export class Race {
       const entry: RaceEntry = { id: `bot${k}`, name: names[k]!, kind: 'bot', rider, driver, color: primary, penalties: 0, finishTime: null, pace: nominal(vehicle), lastS: spawnS, ghostHold: 0, ghostSlow: 0, ghostStop: 0, garage, baseLevel: BOT_LEVELS[k] ?? 0.7, checkpoint: -1 };
       rider.resetS = () => this.respawnS(entry);
       rider.onEvent = (type, payload) => {
-        if (type === 'player:crash' && this.lastRunState === 'running' && entry.finishTime === null) entry.penalties += (payload as { penalty: number }).penalty;
+        if (this.lastRunState !== 'running' || entry.finishTime !== null) return;
+        if (type === 'player:crash') entry.penalties += (payload as { penalty: number }).penalty;
+        // Time Freeze for a bot: a time credit worth the frozen seconds.
+        if (type === 'rider:pickup' && (payload as { kind: string }).kind === 'freeze') entry.penalties -= PICKUPS.freezeSeconds;
       };
       this.entries.push(entry);
     }
@@ -141,6 +145,7 @@ export class Race {
     this.time = 0;
     let j = 0;
     for (const e of this.entries) {
+      e.rider.perks.reset();
       e.penalties = 0;
       e.finishTime = null;
       e.lastS = this.spawnS;
@@ -278,6 +283,28 @@ export class Race {
       r.vehicle.model.visible = d < RACE.drawRange;
       r.detail = d < RACE.detailRange;
       r.update(simDt, alpha);
+    }
+    if (run.state === 'running') this.closePasses();
+  }
+
+  private readonly passA = new THREE.Vector3();
+  private readonly passB = new THREE.Vector3();
+  /** Riders flashing past each other close but clean count as near misses for both. */
+  private closePasses(): void {
+    const live = this.entries.filter((e) => !e.rider.ghost && e.rider.state === 'riding' && e.finishTime === null);
+    for (let a = 0; a < live.length; a++) {
+      const ra = live[a]!.rider;
+      ra.vehicle.renderPosition(this.passA);
+      for (let b = a + 1; b < live.length; b++) {
+        const rb = live[b]!.rider;
+        rb.vehicle.renderPosition(this.passB);
+        const d = this.passA.distanceTo(this.passB);
+        if (d < 1.2 || d > 2.6) continue;
+        const rel = Math.abs(ra.vehicle.telemetry.speed - rb.vehicle.telemetry.speed);
+        if (rel < 3 || Math.max(ra.vehicle.telemetry.speed, rb.vehicle.telemetry.speed) < NEAR_MISS.minSpeed) continue;
+        ra.perks.nearMiss(`rider:${live[b]!.id}`);
+        rb.perks.nearMiss(`rider:${live[a]!.id}`);
+      }
     }
   }
 

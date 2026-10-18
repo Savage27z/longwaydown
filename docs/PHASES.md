@@ -482,3 +482,31 @@ Goal: the mountain should look like a lively race venue, not primitives on an em
   - At each checkpoint there's a 45% chance it swaps to another one.
   - Off big airs (10 m or more) it may pull the wingsuit and glide, landing back on its ground vehicle.
   - Switches have a 20 s cooldown. Each headless race had about 16 mid-race switches beyond the landing swaps.
+
+## Phase 6: boost, tricks, pickups
+Every rider, you and the bots, has a `RiderPerks` (`gameplay/Perks.ts`): a boost meter, a trick combo, buffs and near-misses. Only the local rider's events reach the HUD and the run.
+
+- **Boost meter** (`BOOST` in `config/stunts.ts`):
+  - It replaces unlimited boost. It drains while boosting (0.22/s) and starts each run at half.
+  - It refills slowly on its own, faster at speed, and from air time, tricks, near-misses and boost pickups.
+  - Bots spend and earn by the same rules.
+- **Tricks** (`gameplay/Tricks.ts`, unit-tested):
+  - Landings are named and scored: spins (360, 540…), front and back flips (single, double…), grabs (Indy, Mute, No-Hander, Superman), Switch, Big Air and plain Air.
+  - Each landing within 4 s of the last extends the combo, up to a 5x multiplier. The chain banks when the window runs out, and a crash loses it.
+  - Pop-ups show each trick, the combo with its timer bar, the banked total and lost combos.
+  - Bots throw 360s, and backflips off big airs, by skill.
+- **Near-misses:** brushing a tree or rock within 3 m at 14 m/s or more, or flashing past another rider within 2.6 m, gives boost and 50 points (0.8 s cooldown, once per obstacle).
+- **Pickups** (`world/Pickups.ts`): glowing orbs with icons about every 320 m along the trail, clear of jump lips, placed the same way every run.
+  - Boost: fills 50% of the meter.
+  - Time Freeze: stops your timer for 4 s, or gives a bot a 4 s credit.
+  - Grip: 8 s.
+  - Speed: 6 s at 1.15x top speed.
+  - Low Gravity: 8 s.
+  - Shield: absorbs one crash within 25 s.
+  - Each rider collects each pickup once per run. Ghost bots collect by passing the spot.
+  - Buff icons with countdown bars sit bottom-left.
+- **Results** add best combo and near-misses. The trick score and pickups were already there and are now counted.
+- **Headless Green Ridge race** (Normal; test player boosting whenever it had at least 15% meter):
+  - The test player finished 2nd, 3 s behind 1st, with the field at 784–872 s.
+  - The player collected 38 pickups, scored 11.6k trick points and had a best combo of 1,188.
+  - Bots landed 14–55 tricks each.

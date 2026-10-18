@@ -16,6 +16,8 @@ import { swapVehicle } from '../vehicles/VehicleSwitcher';
 import { defaultMods, emptyInput, type TransferState, type Vehicle, type VehicleContext, type VehicleSnapshot } from '../vehicles/Vehicle';
 import { Character, makePose } from './Character';
 import { LocalInput, type InputSource } from './InputSource';
+import { RiderPerks, type PerkEvent } from '../gameplay/Perks';
+import { NEAR_MISS } from '../config/stunts';
 import { Ragdoll } from './Ragdoll';
 import { RiderDynamics, type MotionFrame } from './RiderDynamics';
 import { WingsuitMembrane } from './WingsuitMembrane';
@@ -30,7 +32,7 @@ export interface PlayerSnapshot extends VehicleSnapshot {
 }
 
 /** Rider events. The local rider's go on the global bus (HUD, camera, run); every rider's go to `onEvent`. */
-export type RiderEvent = 'player:takeoff' | 'player:land' | 'player:crash' | 'player:respawn' | 'player:switch';
+export type RiderEvent = 'player:takeoff' | 'player:land' | 'player:crash' | 'player:respawn' | 'player:switch' | PerkEvent;
 
 export interface RiderOptions {
   /** Where the controls come from (default: this machine's keyboard / gamepad). */
@@ -58,6 +60,8 @@ export class PlayerController {
   readonly local: boolean;
   readonly source: InputSource;
   readonly paint: ModelOptions | undefined;
+  /** Boost meter, trick combo, buffs, near-misses. */
+  readonly perks: RiderPerks;
   onEvent: (<K extends RiderEvent>(type: K, payload: GameEvents[K]) => void) | null = null;
   /** Ghost mode (non-local riders far from the local one): no physics, coast along the line. */
   ghost = false;
@@ -109,6 +113,7 @@ export class PlayerController {
     this.source = opts.source ?? new LocalInput(game.input);
     this.paint = opts.paint;
     this.character = new Character(opts.look);
+    this.perks = new RiderPerks((type, payload) => this.emit(type, payload));
     this.ctx = { physics: game.physics, world, mods: defaultMods() };
     this.progress = new ProgressTracker(world.query);
     this.progress.reset(spawnS);
@@ -141,13 +146,16 @@ export class PlayerController {
     v.mount.add(this.character.root);
     this.character.root.position.set(0, 0, 0);
     this.character.root.quaternion.identity();
-    v.hooks.onCrash = (reason) => this.onCrash(reason);
-    v.hooks.onLand = (info) => this.emit('player:land', info);
+    v.hooks.onCrash = (reason) => this.perks.absorbCrash() || this.onCrash(reason);
+    v.hooks.onLand = (info) => {
+      this.emit('player:land', info);
+      this.perks.land(info, v.id);
+    };
     v.hooks.onTakeoff = () => this.emit('player:takeoff', {});
   }
 
   /** Ground vehicles a wingsuit landing can hand over to. */
-  private static readonly GROUND = new Set<VehicleId>(['bicycle', 'mountainBike', 'motorbike', 'car', 'snowboard', 'skis']);
+  private static readonly GROUND = new Set<VehicleId>(['bicycle', 'mountainBike', 'motorbike', 'car', 'roadster', 'snowboard', 'skis']);
 
   /**
    * Swap the ridden vehicle in place (keeps position, heading and most of the speed).
@@ -197,6 +205,7 @@ export class PlayerController {
   private onCrash(reason: string): boolean {
     if (this.state !== 'riding') return true;
     this.state = 'crashed';
+    this.perks.crash();
     this.crashTimer = 0;
     const v = this.vehicle.transfer().velocity;
     this.ragdoll = new Ragdoll(this.game.physics, this.character, this.game.renderer.scene, v);
@@ -334,6 +343,7 @@ export class PlayerController {
     }
     if (this.state === 'riding') {
       this.readInput();
+      this.perks.applyMods(this.ctx.mods);
       this.vehicle.fixedUpdate(dt, this.input, this.ctx);
     } else {
       // Keep the parked vehicle still while the rider tumbles.
@@ -349,12 +359,31 @@ export class PlayerController {
       const tel = v.telemetry;
       const gravity = -WORLD.gravity * v.body.gravityScale();
       this.motion.step(dt, v.id, v.body.linvel(), v.renderQuaternion(_q), gravity, tel.grounded, SURFACE_PHYSICS[tel.surface].rough, tel.speed);
+      this.perks.step(dt, tel.speed, tel.boosting, v.stats.boostAccel > 0);
+      this.checkNearMiss(tel.speed);
       this.wingsuitRules();
       if (this.state === 'riding' && !this.spawnHold) this.checkResets(dt);
     } else if (this.ragdoll) {
       this.ragdoll.afterStep(dt);
       this.crashTimer += dt;
       if (this.crashTimer >= RIDING.crashDuration) this.respawnAt(this.progress.result.s + 4, RIDING.respawnSpeed, 'crash');
+    }
+  }
+
+  private missStep = 0;
+  /** Brushing past a tree or rock at speed without touching it: a near miss (boost + points). */
+  private checkNearMiss(speed: number): void {
+    if (speed < NEAR_MISS.minSpeed || ++this.missStep % 4 !== 0) return;
+    const g = this.globalPosition(_g);
+    for (const arr of this.world.chunks.obstaclesNear(g.x, g.z)) {
+      for (let i = 0; i < arr.length; i += 4) {
+        const dx = arr[i]! - g.x;
+        const dz = arr[i + 2]! - g.z;
+        if (Math.abs(dx) > 4 || Math.abs(dz) > 4) continue;
+        const r = arr[i + 3]!;
+        const d = Math.hypot(dx, dz);
+        if (d > r + 0.65 && d < r + NEAR_MISS.margin && Math.abs(arr[i + 1]! - g.y) < 4) this.perks.nearMiss(`${arr[i]!.toFixed(1)},${arr[i + 2]!.toFixed(1)}`);
+      }
     }
   }
 

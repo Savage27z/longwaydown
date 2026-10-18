@@ -49,6 +49,8 @@ export class BotDriver implements InputSource {
   private skipJumpS = -1;
   private decidedJumpS = -1;
   private fumble = 0;
+  private trick: 'spin' | 'flip' | null = null;
+  private trickDir = 1;
   private wasGrounded = true;
 
   constructor(
@@ -118,11 +120,26 @@ export class BotDriver implements InputSource {
       this.wasGrounded = false;
       this.fumble = this.rng() < BOT_MISTAKES.fumbleChance * (1.2 - this.skill.level) * this.mistakeMul ? 0.35 + this.rng() * 0.5 : 0;
       if (this.fumble > 0) this.mistakes++;
+      // Otherwise maybe a trick (it feeds the boost meter): a 360, or a backflip off a big one.
+      this.trick = null;
+      const h = p.heightAboveGround();
+      if (this.fumble <= 0 && h > 3 && this.rng() < 0.2 + this.skill.level * 0.4) {
+        this.trick = h > 6 && this.skill.level > 0.7 && this.rng() < 0.4 ? 'flip' : 'spin';
+        this.trickDir = this.rng() < 0.5 ? -1 : 1;
+      }
     }
+    if (tel.grounded) this.trick = null;
     if (!tel.grounded && this.fumble > 0) {
       this.fumble -= dt;
       i.pitch = this.skill.seed > 5 ? 1 : -1;
       i.spin = 0.6;
+    } else if (this.trick) {
+      // Rotate until one full turn is in, then let the landing assist square it up.
+      const a = p.vehicle as unknown as { trickYaw: number; trickPitch: number };
+      const done = Math.abs(this.trick === 'spin' ? a.trickYaw : a.trickPitch) > Math.PI * 2 * 0.9;
+      if (done) this.trick = null;
+      else if (this.trick === 'spin') i.spin = this.trickDir;
+      else i.pitch = -1;
     }
     // Ongoing slip.
     const s = this.slip;

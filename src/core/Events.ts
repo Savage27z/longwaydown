@@ -1,6 +1,7 @@
 import type { VehicleId } from '../config/vehicles';
 import type { LandInfo } from '../vehicles/Vehicle';
 import type { RunResults, RunState } from '../gameplay/Run';
+import type { PickupKind } from '../config/stunts';
 
 /** Typed event bus. Systems emit; UI/audio/fx listen. Nothing holds direct references across layers. */
 
@@ -66,6 +67,12 @@ export interface GameEvents {
   'run:checkpoint': { index: number; count: number; time: number; delta: number | null };
   'run:penalty': { seconds: number; reason: string };
   'run:finish': { results: RunResults };
+  /** A trick landed (points before the combo multiplier) and the combo it now belongs to. */
+  'trick:land': { name: string; points: number; mult: number; combo: number };
+  'trick:bank': { points: number };
+  'trick:lost': { points: number };
+  'rider:nearMiss': { points: number };
+  'rider:pickup': { kind: PickupKind };
 }
 
 export const events = new EventBus<GameEvents>();

@@ -138,6 +138,8 @@ export class Menus {
         ${stat('Biggest air', `${r.biggestAirTime.toFixed(1)} s · ${r.biggestAirHeight.toFixed(1)} m`)}
         ${stat('Trick score', r.trickScore.toLocaleString())}
         ${stat('Pickups', String(r.pickups))}
+        ${stat('Best combo', r.bestCombo.toLocaleString())}
+        ${stat('Near misses', String(r.nearMisses))}
         ${stat('Crashes', `${r.crashes} (+${r.penalties.toFixed(0)} s)`)}
       </div>
       <div class="row"></div>`;
