@@ -3,6 +3,7 @@ import { MAPS, type MapId } from '../config/maps';
 import { TERRAIN } from '../config/terrain';
 import { crowd } from '../models/Crowd';
 import { eventArch, featherFlag, popupTent, startArea } from '../models/procedural/event';
+import { barn, fencePath, hayBales } from '../models/procedural/farm';
 import { Group, groups, type PhysicsWorld } from '../physics/PhysicsWorld';
 import { R, type RapierNS } from '../physics/rapier';
 import { addStatic, disposeObject } from '../utils/dispose';
@@ -188,6 +189,58 @@ export class CourseProps {
         default:
           break;
       }
+    }
+
+    // Farmland: post-and-rail fences lining the trail (with gaps for gates), hay bales and barns.
+    {
+      const sections = MAPS[c.mapId as MapId].sections;
+      const rng = makeRng(`${sampler.map.seed}:farm`);
+      const edge = TERRAIN.trailHalfWidth + TERRAIN.trailShoulder + 3;
+      sections.forEach((sec, k) => {
+        if (!/farm/i.test(sec.name)) return;
+        const s0 = c.sectionStart[k]!;
+        const s1 = c.sectionStart[k + 1] ?? c.length;
+        // Fence lines in 120 m blocks, posts every ~6 m along the trail edge on both sides.
+        for (let s = s0 + 30; s < s1 - 30; s += 130) {
+          // Only structures that would clash with a fence line (bridges, fords, ramps...) break it.
+          if (c.features.some((f) => ['river', 'ford', 'ramp', 'tunnel', 'arch'].includes(f.type) && f.s > s - 30 && f.s < s + 150)) continue;
+          for (const side of [1, -1]) {
+            if (rng() < 0.2) continue;
+            const j0 = at(s);
+            const ox = c.x[j0]! - c.tz[j0]! * edge * side;
+            const oz = c.z[j0]! + c.tx[j0]! * edge * side;
+            const oy = h(ox, oz);
+            const pts: THREE.Vector3[] = [];
+            for (let d = 0; d <= 120; d += 6) {
+              const j = at(s + d);
+              const x = c.x[j]! - c.tz[j]! * edge * side;
+              const z = c.z[j]! + c.tx[j]! * edge * side;
+              pts.push(new THREE.Vector3(x - ox, h(x, z) - oy - 0.05, z - oz));
+            }
+            add(ox, oy, oz, 0, 0, () => fencePath(pts));
+          }
+        }
+        // Hay bales in the fields beside the trail.
+        for (let s = s0 + 120; s < s1 - 100; s += 160 + rng() * 140) {
+          const j = at(s);
+          const side = rng() < 0.5 ? 1 : -1;
+          const off = (edge + 6 + rng() * 16) * side;
+          const x = c.x[j]! - c.tz[j]! * off;
+          const z = c.z[j]! + c.tx[j]! * off;
+          const seed = Math.floor(rng() * 1e6) + 1;
+          add(x, h(x, z) - 0.1, z, headingAt(j), 0, () => hayBales(3 + Math.floor(rng() * 4), seed));
+        }
+        // Barns facing the trail.
+        for (let s = s0 + 300; s < s1 - 200; s += 550 + rng() * 300) {
+          const j = at(s);
+          const side = rng() < 0.5 ? 1 : -1;
+          const off = (c.hw[j]! + 16 + rng() * 18) * side;
+          const x = c.x[j]! - c.tz[j]! * off;
+          const z = c.z[j]! + c.tx[j]! * off;
+          const facing = Math.atan2(c.tz[j]! * side, -c.tx[j]! * side) - Math.PI / 2;
+          add(x, h(x, z) - 0.3, z, facing, 0, () => barn(9 + rng() * 3, 14 + rng() * 4, 6 + rng() * 2));
+        }
+      });
     }
 
     // Finish arch + village.

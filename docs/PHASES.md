@@ -537,3 +537,26 @@ Every rider, you and the bots, has a `RiderPerks` (`gameplay/Perks.ts`): a boost
   - The old homing steered at the target's position at the bottle's own speed, so it lost the race against riders doing 40 m/s. Throws now chase in the target's moving frame (its velocity plus 26 m/s closing speed).
   - Headless test: the player hit 32 of 33 throws, at 2 to 40 m.
   - Bots throw less often (0.3/s when lined up) and wait at least 6 s between their throws.
+
+## Phase 7: Map 2, Green Ridge polish
+Already in place from earlier steps:
+- the grass biome and surfaces;
+- the meadows, scree, cliffside, forest, river valley, farmland and town sections;
+- rivers with bridges, and fords;
+- grass and flower tufts, finish-town houses;
+- map select with the lock.
+
+New in this phase:
+- **Surface spray** (`fx/Spray.ts`): one pooled point cloud (1,400 particles) with per-particle colour, size and fade.
+  - Wheels, boards and skis kick up dust on dirt, the trail and gravel, dark mud on mud, and grass bits.
+  - On Snow Peak, snow comes off powder and the groomed trail, and boards and skis throw bigger plumes when carving.
+  - Water gives big splashes.
+  - Cars spray from both rear wheels.
+  - Landings after real air, and riding into water, give a burst.
+  - It runs for every rider within 120 m of the camera, and particles follow origin shifts.
+- **Water:** glossy, a little see-through, with a tileable ripple texture drifting downstream (it animates each frame through the structure tick).
+- **Farm props** (`models/procedural/farm.ts`) in Farmland Hills:
+  - Post-and-rail fences line both trail edges in 120 m merged runs that follow the trail's curve and slope, with random gaps for gates.
+  - Fences only break for bridges, fords, ramps, tunnels and arches.
+  - Round hay bale groups sit in the fields, and red barns with white trim face the trail.
+  - Everything has colliders.

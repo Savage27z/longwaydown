@@ -233,14 +233,57 @@ export function viewpoint(): Structure {
 }
 
 /** Translucent water ribbon (rivers / fords), length along +Z in the local frame. */
+/** Tileable ripple pattern: soft light streaks on a transparent ground (tinted by the material). */
+let rippleTex: THREE.CanvasTexture | null = null;
+function ripples(): THREE.CanvasTexture {
+  if (rippleTex) return rippleTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#b8c8d4';
+  g.fillRect(0, 0, 256, 256);
+  let seed = 11;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (let k = 0; k < 140; k++) {
+    const x = rnd() * 256;
+    const y = rnd() * 256;
+    const w = 10 + rnd() * 40;
+    g.strokeStyle = `rgba(255,255,255,${0.25 + rnd() * 0.45})`;
+    g.lineWidth = 1 + rnd() * 2;
+    for (const [ox, oy] of [[0, 0], [256, 0], [-256, 0], [0, 256], [0, -256]] as const) {
+      g.beginPath();
+      g.moveTo(x - w / 2 + ox, y + oy);
+      g.quadraticCurveTo(x + ox, y - 3 + oy, x + w / 2 + ox, y + oy);
+      g.stroke();
+    }
+  }
+  rippleTex = new THREE.CanvasTexture(c);
+  rippleTex.colorSpace = THREE.SRGBColorSpace;
+  rippleTex.wrapS = rippleTex.wrapT = THREE.RepeatWrapping;
+  rippleTex.userData.shared = true;
+  return rippleTex;
+}
+
+/** River / ford water: glossy, a little see-through, with ripples drifting downstream. */
 export function waterPlane(width: number, length: number, color: string): Structure {
   const geo = new THREE.PlaneGeometry(width, length, 1, 8);
   geo.rotateX(-Math.PI / 2);
-  const mat = new THREE.MeshLambertMaterial({ color, transparent: true, opacity: 0.78 });
+  const map = ripples().clone();
+  map.needsUpdate = true;
+  map.repeat.set(width / 9, length / 9);
+  const mat = new THREE.MeshPhongMaterial({ color, map, transparent: true, opacity: 0.84, shininess: 90, specular: '#ffffff' });
   const m = new THREE.Mesh(geo, mat);
   m.receiveShadow = true;
   const object = new THREE.Group();
   object.add(m);
-  return { object, colliders: [], ownMaterials: [mat] };
+  return {
+    object,
+    colliders: [],
+    ownMaterials: [mat],
+    tick(dt) {
+      map.offset.y += dt * 0.06;
+      map.offset.x += dt * 0.012;
+    },
+  };
 }
 

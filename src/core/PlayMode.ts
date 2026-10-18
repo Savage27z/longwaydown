@@ -9,6 +9,8 @@ import { VEHICLE_IDS, type VehicleId } from '../config/vehicles';
 import { ChaseCamera, type CameraTarget } from '../camera/ChaseCamera';
 import { FlyCam } from '../camera/FlyCam';
 import { Puff } from '../fx/Puff';
+import { Spray, type SprayRider } from '../fx/Spray';
+import { MAPS } from '../config/maps';
 import { SpeedLines } from '../fx/SpeedLines';
 import { Race } from '../gameplay/Race';
 import { Run } from '../gameplay/Run';
@@ -57,6 +59,8 @@ export class PlayMode implements GameMode {
   private toast: Toast;
   private speedLines: SpeedLines;
   private puff: Puff;
+  private spray: Spray;
+  private sprayState = new Map<string, SprayRider & { air: number }>();
   private wheel: VehicleWheel;
   private switchCooldown = 0;
   private slowMo = 0;
@@ -74,6 +78,7 @@ export class PlayMode implements GameMode {
     this.toast = new Toast(game.ui);
     this.speedLines = new SpeedLines(game.renderer.camera);
     this.puff = new Puff(game.renderer.scene);
+    this.spray = new Spray(game.renderer.scene, MAPS[world.mapId].biome === 'snow');
     this.wheel = new VehicleWheel(game.ui);
     this.wheel.onPick = (id) => this.closeWheel(id);
     const best = game.save.data.progress.bestTimes[world.mapId] ?? null;
@@ -225,6 +230,7 @@ export class PlayMode implements GameMode {
     const standings = this.race.standings();
     this.updateTags(standings);
     this.updateThrows(simDt, run.state === 'running');
+    this.updateSpray(simDt);
     this.pickups.update(simDt, this.world.origin.toGlobal(this.game.renderer.camera.position, this.camGlobal), run.state === 'running' ? this.pickupRiders : []);
 
     this.player.focusLocal(this.focus);
@@ -246,6 +252,38 @@ export class PlayMode implements GameMode {
       pace: this.race.local.pace,
     });
     this.world.update(realDt, this.focus, this.player.progress.result.s);
+  }
+
+  /** Dust, mud, snow and water kicked up by every rider near the camera, plus landing bursts. */
+  private updateSpray(dt: number): void {
+    if (dt <= 0) return;
+    const cam = this.game.renderer.camera;
+    this.spray.setViewport(this.game.renderer.renderer.domElement.clientHeight || 720, cam.fov);
+    for (const e of this.race.entries) {
+      const r = e.rider;
+      const v = r.vehicle;
+      let st = this.sprayState.get(e.id);
+      if (!st) this.sprayState.set(e.id, (st = { vehicle: v.id, pos: new THREE.Vector3(), heading: 0, speed: 0, surface: 'packed', grounded: true, steer: 0, carry: 0, air: 0 }));
+      if (r.ghost || r.state !== 'riding' || !v.model.visible) continue;
+      v.renderPosition(st.pos);
+      if (st.pos.distanceTo(cam.position) > 120) continue;
+      st.pos.y = this.world.groundLocal(st.pos.x, st.pos.z);
+      const tel = v.telemetry;
+      const wasAir = st.air;
+      const lastSurface = st.surface;
+      st.vehicle = v.id;
+      st.heading = tel.heading;
+      st.speed = tel.speed;
+      st.surface = tel.surface;
+      st.grounded = tel.grounded;
+      st.steer = r.input.steer;
+      st.air = tel.grounded ? 0 : tel.airTime;
+      // Touchdown after real air, or hitting water: a burst.
+      if (tel.grounded && wasAir > 0.4) this.spray.burst(st, tel.speed / 5 + wasAir * 4);
+      else if (tel.grounded && tel.surface === 'water' && lastSurface !== 'water') this.spray.burst(st, tel.speed / 3);
+      this.spray.emit(st, dt);
+    }
+    this.spray.update(dt);
   }
 
   /** Throws: launch what riders asked for, let bots decide, fly the projectiles. */
@@ -420,6 +458,7 @@ export class PlayMode implements GameMode {
     this.run.dispose();
     this.race.dispose();
     this.pickups.dispose();
+    this.spray.dispose();
     this.throwables.dispose();
     this.tags.dispose();
     this.hud.dispose();
