@@ -603,3 +603,25 @@ New in this phase:
 - `VEHICLE_UNLOCKS` is empty, so every vehicle is free from the start: in the vehicle wheel, Customize paint and the stations.
 - Outfits and shades still unlock by milestones and tokens.
 - To lock a vehicle again, add a rule to `config/progression.ts`.
+
+## Phase 9 — Audio ✅
+All sound is synthesised with Web Audio, so no audio files are needed (`audio/AudioManager.ts`, tuning in `config/audio.ts`).
+- **Wind** rises in loudness and brightness with speed, with extra in the air and in flight.
+- **Surface noise** is filtered noise per surface with a grainy flutter: crunchy packed snow, hushed powder, hissing ice, rattling gravel and rock, dull dirt and mud, splashy water.
+- **Engines:**
+  - Motorbike and buggy: sawtooth plus a sub-octave square, with simulated gear shifts.
+  - Volt Roadster: an electric whine.
+  - Hover car: a wobbling hum.
+  - Boost brightens the engine and adds a rush.
+- **One-shots:**
+  - Landing thump scaled by impact, and a crash thud.
+  - Vehicle switch whoosh and wheel swish.
+  - Countdown beeps and GO, checkpoint bell, penalty buzz, finish fanfare.
+  - Trick land (pitch rises with the multiplier), combo bank, combo lost.
+  - Near-miss whoosh, pickup chimes (bottles clink), throw whoosh, hit / knocked-out thuds, token sparkle.
+  - Menu clicks, and focus ticks for the gamepad.
+- **Mixing:**
+  - Master, music and effects buses follow the Settings sliders live, through a soft limiter.
+  - Everything goes quiet under pause and menus.
+  - Audio starts on the first click, key or pad press (browser autoplay rules).
+- **Music slot:** set `AUDIO.music` to a file in `/public` to loop it on the music bus. It is empty by default.

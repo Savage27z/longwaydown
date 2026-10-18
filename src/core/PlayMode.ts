@@ -244,6 +244,7 @@ export class PlayMode implements GameMode {
     this.world.origin.update(this.focus);
     if (this.phase === 'menu') {
       this.updateMenu(realDt);
+      this.game.audio.update(null);
       return;
     }
     const input = this.game.input;
@@ -301,6 +302,13 @@ export class PlayMode implements GameMode {
       pace: this.race.local.pace,
     });
     this.world.update(realDt, this.focus, this.player.progress.result.s);
+    // Ride sound only while the game runs (silent under pause / menus).
+    const v = this.player.vehicle;
+    this.game.audio.update(
+      live && this.player.state === 'riding'
+        ? { vehicle: v.id, speed: tel.speed, grounded: tel.grounded, surface: tel.surface, flying: tel.flying, boosting: tel.boosting }
+        : null,
+    );
   }
 
   /** Dust, mud, snow and water kicked up by every rider near the camera, plus landing bursts. */
@@ -355,6 +363,7 @@ export class PlayMode implements GameMode {
     for (const r of riders) {
       if (!r.rider.wantsThrow) continue;
       r.rider.wantsThrow = false;
+      if (r.local && r.rider.perks.ammo > 0) events.emit('rider:throw', {});
       this.throwables.throw(r, riders);
     }
     this.throwables.update(dt, riders, (x, z) => this.world.groundLocal(x, z));

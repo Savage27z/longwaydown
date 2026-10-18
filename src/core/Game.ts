@@ -2,6 +2,7 @@ import { GRAPHICS_PRESETS, type GraphicsSettings, type QualityPreset } from '../
 import { RUN } from '../config/gameplay';
 import { MAP_ORDER, MAPS, type MapId } from '../config/maps';
 import { Progression } from '../gameplay/Progression';
+import { AudioManager } from '../audio/AudioManager';
 import type { RunResults } from '../gameplay/Run';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { Renderer } from '../render/Renderer';
@@ -41,6 +42,7 @@ export class Game {
   readonly loop: Loop;
   readonly save = new Save();
   readonly progression = new Progression(this.save);
+  readonly audio = new AudioManager();
   readonly menus: Menus;
   quality: QualityPreset;
   state: StateId = 'loading';
@@ -82,6 +84,7 @@ export class Game {
       applySettings: () => this.applySettings(),
     });
     this.menus.back = () => this.menuBack();
+    this.audio.bind(events);
     events.on('run:finish', ({ results }) => {
       this.pendingResults = results;
       this.finishTimer = RUN.resultsDelay;
@@ -183,6 +186,7 @@ export class Game {
   applySettings(): void {
     const s = this.save.data.settings;
     this.input.setBindings(s.keys, s.pad);
+    this.audio.setVolumes(s.masterVolume, s.musicVolume, s.sfxVolume);
     this.play?.applySettings(s);
   }
 
@@ -242,6 +246,8 @@ export class Game {
 
   private update(realDt: number, simDt: number, alpha: number): void {
     this.input.update();
+    // Gamepad players may never click or type: try to start audio on pad use too.
+    if (!this.audio.running && this.input.lastDevice === 'gamepad') this.audio.unlock();
     if (this.input.framePressed('pause')) this.togglePause();
     if (this.finishTimer > 0) {
       this.finishTimer -= realDt;
