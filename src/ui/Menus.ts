@@ -1,3 +1,4 @@
+import { COLLECTIBLES } from '../config/progression';
 import { MAP_ORDER, MAPS, type MapId } from '../config/maps';
 import { RIDER_ASSET } from '../config/riders';
 import type { Input } from '../core/Input';
@@ -124,18 +125,57 @@ export class Menus {
 
   private mainScreen(): HTMLElement {
     const p = document.createElement('div');
-    p.className = 'menu-panel left';
-    p.innerHTML = `<h1 class="menu-title">LONG WAY<br><span>DOWN</span></h1><div class="menu-tag">Summit to valley · no stopping</div><div class="menu-buttons"></div>`;
-    const b = p.querySelector('.menu-buttons')!;
+    p.className = 'hub';
     this.returnTo = 'main';
-    b.append(
-      button('Play', () => this.show('maps'), 'primary'),
-      button('Ride online', () => this.show('online')),
-      button('Customize', () => this.show('customize')),
-      button('Settings', () => this.show('settings')),
-      button('Controls', () => this.show('controls')),
-      button('Credits', () => this.show('credits')),
+    const pr = this.save.data.progress;
+    const net = this.net();
+    const unlocked = MAP_ORDER.filter((m) => this.save.isMapUnlocked(m)).length;
+    const best = MAP_ORDER.map((m) => {
+      const b = pr.bestTimes[m];
+      return `<div class="career-row"><span>${MAPS[m].name}</span><b>${b ? formatTime(b.time, false) : '—'}</b></div>`;
+    }).join('');
+    const finishes = Object.values(pr.finishes).reduce((a, n) => a + (n ?? 0), 0);
+    const name = this.save.data.name;
+    p.innerHTML = `
+      <div class="hub-top">
+        <div class="brand">${BRAND_MARK}<div class="brand-word"><span>Long Way</span><b>Down</b></div></div>
+        <div class="hub-chip">${name ? `<i></i>${escapeHtml(name)}` : 'Summit to valley · no stopping'}</div>
+      </div>
+      <div class="hub-main">
+        <nav class="hub-nav"></nav>
+        <aside class="career">
+          <div class="career-head">Your career</div>
+          <div class="career-stats">
+            <div><b>${finishes}</b><span>Finishes</span></div>
+            <div><b>${(pr.totalDistance / 1000).toFixed(0)}</b><span>km ridden</span></div>
+            <div><b>${pr.collectibles.length}<small>/${COLLECTIBLES.perMap * MAP_ORDER.length}</small></b><span>Tokens</span></div>
+            <div><b>${Math.round(pr.totalTrickScore / 1000)}k</b><span>Trick pts</span></div>
+          </div>
+          <div class="career-head sub">Best times</div>
+          ${best}
+        </aside>
+      </div>
+      <div class="hub-hints"></div>`;
+    const nav = p.querySelector('.hub-nav')!;
+    const tile = (kicker: string, title: string, sub: string, onClick: () => void, cls = '') => {
+      const b = document.createElement('button');
+      b.className = `tile ${cls}`;
+      b.innerHTML = `<span class="tile-k">${kicker}</span><span class="tile-t">${title}</span><span class="tile-s">${sub}</span>`;
+      b.addEventListener('click', onClick);
+      return b;
+    };
+    const play = tile('Race', 'Play', `${unlocked} mountain${unlocked > 1 ? 's' : ''} · 7 rivals · 26 km down`, () => this.show('maps'), 'hero');
+    play.dataset.autofocus = '';
+    const small = document.createElement('div');
+    small.className = 'hub-small';
+    small.append(button('Settings', () => this.show('settings'), 'small'), button('Controls', () => this.show('controls'), 'small'), button('Credits', () => this.show('credits'), 'small'));
+    nav.append(
+      play,
+      tile('Multiplayer', 'Ride online', net ? `In room ${net.code} · ${net.players.length} rider${net.players.length > 1 ? 's' : ''}` : 'Host a room or join with a code', () => this.show('online')),
+      tile('Your rider', 'Customize', 'Outfit, colours and vehicle paint', () => this.show('customize')),
+      small,
     );
+    p.querySelector('.hub-hints')!.innerHTML = hintBar(this.input.lastDevice === 'gamepad');
     return p;
   }
 
@@ -272,4 +312,17 @@ function unlocksBlock(r: RunResults): string {
   if (!r.unlocks?.length) return '';
   const label: Record<string, string> = { map: 'New mountain', vehicle: 'New vehicle', outfit: 'New outfit', goggles: 'New eyewear' };
   return `<div class="unlocks">${r.unlocks.map((u) => `<div class="unlock"><span>${label[u.kind] ?? 'Unlocked'}</span>${u.name}</div>`).join('')}</div>`;
+}
+
+
+const BRAND_MARK = '<svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M4 54 L25 14 L35 31 L44 21 L60 54 Z" fill="#eaf2ff"/><path d="M9 51 L55 29" stroke="#ff5a1f" stroke-width="6" stroke-linecap="round"/></svg>';
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
+/** Bottom hints: how to drive the menus on the device in use. */
+function hintBar(pad: boolean): string {
+  const k = (key: string, what: string) => `<span><kbd>${key}</kbd>${what}</span>`;
+  return pad ? `${k('A', 'Select')}${k('B', 'Back')}${k('LB / RB', 'Tabs')}` : `${k('Click', 'Select')}${k('Esc', 'Back')}${k('Tab', 'Move')}`;
 }

@@ -13,11 +13,17 @@ import { Renderer } from '../render/Renderer';
 import { Loading } from '../ui/Loading';
 import { Menus } from '../ui/Menus';
 import '../ui/ui.css';
+import '../ui/theme.css';
 import { events } from './Events';
 import { Input } from './Input';
 import { Loop } from './Loop';
 import { PlayMode } from './PlayMode';
 import { Save } from './Save';
+
+/** Loading screen line for a mountain. */
+function mapTitle(id: MapId): string {
+  return `<b>${MAPS[id].name}</b>${MAPS[id].tagline}`;
+}
 
 export type StateId = 'loading' | 'menu' | 'playing' | 'paused' | 'finished';
 
@@ -147,7 +153,7 @@ export class Game {
     if (!this.play || this.play.world.mapId !== id || this.play.online) {
       this.menus.hide();
       this.setState('loading');
-      this.loading.show('Loading…');
+      this.loading.show('Loading…', mapTitle(id));
       const old = this.play;
       this.play = null;
       this.mode = null;
@@ -228,7 +234,7 @@ export class Game {
     if (!net) return;
     this.menus.hide();
     this.setState('loading');
-    this.loading.show('Loading…');
+    this.loading.show('Loading…', `${mapTitle(info.map)} · online race`);
     const old = this.play;
     this.play = null;
     this.mode = null;

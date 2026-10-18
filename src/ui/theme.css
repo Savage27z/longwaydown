@@ -1,0 +1,402 @@
+/* =====================================================================
+   Theme v2: Riders Republic-style menus — condensed italic type, slanted
+   tiles, glass cards with an accent edge. Loaded after ui.css (overrides).
+   ===================================================================== */
+.menu-root {
+  background: linear-gradient(100deg, rgba(6, 12, 22, 0.92) 0%, rgba(6, 12, 22, 0.6) 42%, rgba(6, 12, 22, 0.08) 75%, rgba(6, 12, 22, 0) 100%);
+}
+.menu-root.dim {
+  background: radial-gradient(ellipse at 50% 40%, rgba(6, 12, 22, 0.66), rgba(6, 12, 22, 0.88));
+  backdrop-filter: blur(3px);
+}
+.menu-panel.card {
+  position: relative;
+  background: linear-gradient(160deg, rgba(21, 37, 58, 0.95), rgba(8, 15, 26, 0.96));
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+  animation: cardIn 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.1);
+}
+.menu-panel.card::before {
+  /* Accent edge along the top. */
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2) 60%, transparent);
+}
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+}
+.menu-heading {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 900;
+  font-size: 44px;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin: 2px 0 18px;
+}
+.menu-tag {
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 2.5px;
+  color: var(--muted);
+  opacity: 1;
+}
+.section-label {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent-2);
+  opacity: 1;
+}
+
+/* Buttons: slanted, crisp, accent edge on focus. */
+.btn {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 800;
+  font-size: 24px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--line);
+  border-left: 5px solid transparent;
+  padding: 10px 26px;
+  transform: skewX(var(--slant));
+}
+.btn:hover,
+.btn:focus-visible,
+.menu-root.pad .btn:focus {
+  background: rgba(255, 255, 255, 0.15);
+  border-left-color: var(--accent);
+  transform: skewX(var(--slant)) translateX(5px);
+}
+.btn.primary {
+  background: linear-gradient(90deg, var(--accent), #ff7a3d);
+  border-color: transparent;
+  box-shadow: 0 8px 24px rgba(255, 90, 31, 0.3);
+}
+.btn.primary:hover,
+.menu-root.pad .btn.primary:focus {
+  background: linear-gradient(90deg, #ff6a30, #ff9150);
+  border-left-color: var(--accent-2);
+}
+.btn.small {
+  font-size: 17px;
+  padding: 7px 18px;
+}
+.btn:disabled {
+  transform: skewX(var(--slant));
+}
+
+/* ---------- Main menu hub ---------- */
+.hub {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding: clamp(18px, 4vh, 40px) clamp(18px, 5vw, 64px);
+  gap: 18px;
+  overflow-y: auto;
+}
+.hub-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  animation: fadeUp 0.4s ease both;
+}
+.hub .brand-mark {
+  width: clamp(48px, 6vw, 66px);
+  height: clamp(48px, 6vw, 66px);
+}
+.hub .brand-word {
+  font-size: clamp(30px, 4.2vw, 46px);
+}
+.hub-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 18px;
+  transform: skewX(var(--slant));
+  background: rgba(10, 20, 32, 0.7);
+  border: 1px solid var(--line);
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.hub-chip i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--good);
+  box-shadow: 0 0 8px var(--good);
+}
+.hub-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  min-height: 0;
+}
+.hub-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(460px, 100%);
+}
+.tile {
+  appearance: none;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr;
+  text-align: left;
+  cursor: pointer;
+  color: var(--paper);
+  font-family: var(--font);
+  padding: 14px 26px 15px 28px;
+  border: 1px solid var(--line);
+  border-left: 6px solid transparent;
+  background: linear-gradient(90deg, rgba(14, 26, 42, 0.92), rgba(14, 26, 42, 0.62));
+  transform: skewX(var(--slant));
+  transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  animation: slideIn 0.45s ease both;
+}
+.tile > span {
+  transform: skewX(12deg);
+  transform-origin: left;
+}
+.tile:nth-child(2) {
+  animation-delay: 0.05s;
+}
+.tile:nth-child(3) {
+  animation-delay: 0.1s;
+}
+.tile-k {
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--accent-2);
+}
+.tile-t {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 900;
+  font-size: 40px;
+  line-height: 1.02;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.tile-s {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--muted);
+}
+.tile:hover,
+.tile:focus-visible,
+.menu-root.pad .tile:focus {
+  outline: none;
+  border-left-color: var(--accent);
+  background: linear-gradient(90deg, rgba(30, 50, 78, 0.95), rgba(20, 36, 58, 0.75));
+  transform: skewX(var(--slant)) translateX(8px);
+}
+.tile.hero {
+  padding: 22px 28px 22px 30px;
+  background: linear-gradient(100deg, #ff5a1f 0%, #ff7d3a 55%, #ffb03a 100%);
+  border-color: transparent;
+  box-shadow: 0 16px 40px rgba(255, 90, 31, 0.35);
+}
+.tile.hero .tile-k,
+.tile.hero .tile-s {
+  color: rgba(255, 255, 255, 0.88);
+}
+.tile.hero .tile-t {
+  font-size: 64px;
+  text-shadow: 0 4px 0 rgba(0, 0, 0, 0.15);
+}
+.tile.hero:hover,
+.tile.hero:focus-visible,
+.menu-root.pad .tile.hero:focus {
+  background: linear-gradient(100deg, #ff6a2e 0%, #ff8d48 55%, #ffc04a 100%);
+  border-left-color: var(--accent-2);
+}
+.hub-small {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  animation: fadeUp 0.5s 0.15s ease both;
+}
+.hub-small .btn {
+  min-width: 0;
+  flex: 1;
+  text-align: center;
+}
+.career {
+  align-self: flex-end;
+  width: min(320px, 34vw);
+  padding: 20px 22px;
+  background: rgba(8, 16, 28, 0.78);
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--cool);
+  backdrop-filter: blur(6px);
+  animation: fadeUp 0.5s 0.15s ease both;
+}
+.career-head {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.career-head.sub {
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: var(--cool);
+  margin: 18px 0 6px;
+}
+.career-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 14px;
+}
+.career-stats b {
+  display: block;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 900;
+  font-size: 34px;
+  line-height: 1;
+}
+.career-stats small {
+  font-size: 18px;
+  color: var(--muted);
+}
+.career-stats span {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.career-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+  font-weight: 700;
+}
+.career-row b {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.hub-hints {
+  display: flex;
+  gap: 22px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.hub-hints kbd {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 2px 8px;
+  font: inherit;
+  font-weight: 800;
+  color: var(--paper);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: skewX(var(--slant)) translateX(-30px);
+  }
+}
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+@media (max-width: 760px), (max-height: 600px) {
+  .career {
+    display: none;
+  }
+  .tile-t {
+    font-size: 30px;
+  }
+  .tile.hero .tile-t {
+    font-size: 44px;
+  }
+  .tile.hero {
+    padding: 16px 24px;
+  }
+  .hub-hints {
+    display: none;
+  }
+}
+
+/* ---------- Map select, results and the rest ---------- */
+.map-card {
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  border-top: 4px solid transparent;
+  background: linear-gradient(170deg, rgba(30, 50, 78, 0.7), rgba(10, 20, 32, 0.7));
+}
+.map-card:hover,
+.map-card:focus-visible,
+.menu-root.pad .map-card:focus {
+  border-color: var(--line);
+  border-top-color: var(--accent);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+}
+.map-card h3 {
+  font-weight: 900;
+  font-size: 34px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.map-card canvas {
+  border-radius: 2px;
+}
+.results-time {
+  font-weight: 900;
+}
+.stat {
+  border-radius: 2px;
+  border-left: 3px solid var(--accent);
+}
+.chip {
+  border-radius: 3px;
+}
+.unlock {
+  border-radius: 2px;
+  transform: skewX(var(--slant));
+}
+.toast {
+  font-family: var(--font-display);
+  font-size: 19px;
+  letter-spacing: 0.5px;
+}

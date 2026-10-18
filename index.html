@@ -3,18 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0d1b2a" />
+    <meta name="theme-color" content="#0a1420" />
+    <meta name="description" content="Long Way Down: a browser downhill freeride race. Wingsuit off the summit, switch vehicles on the fly, and race friends 26 km to the valley." />
     <title>Long Way Down</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M4 56 L26 14 L36 30 L44 20 L60 56 Z' fill='%23e8f1ff'/%3E%3Cpath d='M26 14 L31 24 L22 30 Z' fill='%23ffffff'/%3E%3C/svg%3E" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a1420'/%3E%3Cpath d='M6 52 L26 16 L35 31 L43 22 L58 52 Z' fill='%23eaf2ff'/%3E%3Cpath d='M10 50 L54 30' stroke='%23ff5a1f' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,700;1,800;1,900&family=Barlow:wght@500;600;700;800&display=swap" rel="stylesheet" />
   </head>
   <body>
     <canvas id="game"></canvas>
     <div id="ui"></div>
     <div id="loading" class="loading">
+      <svg class="loading-ridges" viewBox="0 0 1600 520" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+        <path class="r1" d="M0 300 L150 210 L260 260 L420 120 L540 220 L700 90 L860 240 L1000 150 L1150 250 L1300 140 L1460 230 L1600 170 L1600 520 L0 520 Z" />
+        <path class="r2" d="M0 380 L180 290 L330 350 L500 250 L690 360 L880 270 L1040 350 L1220 280 L1400 360 L1600 300 L1600 520 L0 520 Z" />
+        <path class="r3" d="M0 460 L240 380 L480 440 L760 370 L1020 450 L1300 390 L1600 450 L1600 520 L0 520 Z" />
+      </svg>
       <div class="loading-inner">
-        <div class="loading-title">LONG WAY <span>DOWN</span></div>
-        <div class="loading-bar"><div class="loading-fill"></div></div>
-        <div class="loading-text">Starting…</div>
+        <div class="brand big">
+          <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M4 54 L25 14 L35 31 L44 21 L60 54 Z" fill="#eaf2ff" /><path d="M9 51 L55 29" stroke="#ff5a1f" stroke-width="6" stroke-linecap="round" /></svg>
+          <div class="brand-word"><span>Long Way</span><b>Down</b></div>
+        </div>
+        <div class="loading-meta"></div>
+        <div class="loading-track"><div class="loading-fill"><i class="loading-rider"></i></div></div>
+        <div class="loading-row"><span class="loading-text">Starting…</span><span class="loading-pct">0%</span></div>
+        <div class="loading-tip"></div>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

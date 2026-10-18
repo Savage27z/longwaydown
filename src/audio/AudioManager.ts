@@ -47,7 +47,7 @@ export class AudioManager {
     window.addEventListener('keydown', unlock);
     // Menu feedback: a click on any control, a soft tick when the gamepad moves focus.
     document.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement | null)?.closest?.('.btn, .chip, .sw, .map-card, .vwheel')) this.ui('click');
+      if ((e.target as HTMLElement | null)?.closest?.('.btn, .tile, .chip, .sw, .map-card, .vwheel')) this.ui('click');
     });
     document.addEventListener('focusin', (e) => {
       if ((e.target as HTMLElement | null)?.closest?.('.menu-root.pad')) this.ui('move');
