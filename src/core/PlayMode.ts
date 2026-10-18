@@ -44,6 +44,7 @@ export class PlayMode implements GameMode {
   private pickups: Pickups;
   private throwables: Throwables;
   private throwRiders: ThrowRider[] = [];
+  private botThrowWait = new Map<string, number>();
   private pickupRiders: PickupRider[] = [];
   private tagItems: NameTagItem[] = [];
   readonly dev = { flyCam: false, orbitCam: false };
@@ -253,10 +254,15 @@ export class PlayMode implements GameMode {
     if (racing) {
       for (const e of this.race.bots) {
         const d = e.driver;
-        if (!d || e.rider.perks.ammo <= 0 || e.rider.ghost || e.rider.state !== 'riding') continue;
+        const wait = Math.max(0, (this.botThrowWait.get(e.id) ?? 0) - dt);
+        this.botThrowWait.set(e.id, wait);
+        if (!d || wait > 0 || e.rider.perks.ammo <= 0 || e.rider.ghost || e.rider.state !== 'riding') continue;
         const from = riders.find((r) => r.id === e.id)!;
         if (!this.throwables.pickTarget(from, riders)) continue;
-        if (Math.random() < THROW.botRate * (0.5 + d.skill.level) * dt) d.throwNow = true;
+        if (Math.random() < THROW.botRate * (0.5 + d.skill.level) * dt) {
+          d.throwNow = true;
+          this.botThrowWait.set(e.id, THROW.botCooldown);
+        }
       }
     }
     for (const r of riders) {

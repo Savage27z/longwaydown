@@ -59,27 +59,48 @@ export class Throwables {
     this.bottleGeo = new THREE.LatheGeometry(pts, 10);
   }
 
-  /** Best target for a throw from `r`: the nearest rider ahead within range and the cone. */
+  /**
+   * Auto-aim: anyone close (within closeRange, any direction: beside, behind, ahead) first,
+   * nearest wins; otherwise the nearest rider ahead within range and the forward cone.
+   */
   pickTarget(from: ThrowRider, riders: ThrowRider[]): ThrowRider | null {
     const v = from.rider.vehicle;
     v.renderPosition(_a);
     const h = v.telemetry.heading;
     _f.set(Math.sin(h), 0, Math.cos(h));
-    let best: ThrowRider | null = null;
-    let bestD = Infinity;
+    let close: ThrowRider | null = null;
+    let closeD = Infinity;
+    let ahead: ThrowRider | null = null;
+    let aheadD = Infinity;
     for (const o of riders) {
       if (o === from || o.rider.ghost || o.rider.state !== 'riding') continue;
       o.rider.vehicle.renderPosition(_b).sub(_a);
       const d = _b.length();
-      if (d < 2 || d > THROW.range) continue;
+      if (d > THROW.range) continue;
+      if (d <= THROW.closeRange) {
+        if (d < closeD) {
+          closeD = d;
+          close = o;
+        }
+        continue;
+      }
       _b.y = 0;
       if (_b.normalize().dot(_f) < Math.cos(THROW.cone)) continue;
-      if (d < bestD) {
-        bestD = d;
-        best = o;
+      if (d < aheadD) {
+        aheadD = d;
+        ahead = o;
       }
     }
-    return best;
+    return close ?? ahead;
+  }
+
+  /** Velocity that closes on the target: its own velocity plus `chase` m/s straight at it. */
+  private chaseVelocity(target: ThrowRider, from: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
+    target.rider.vehicle.renderPosition(_b);
+    _b.y += 1;
+    _b.sub(from).setLength(THROW.chase);
+    const tl = target.rider.vehicle.body.linvel();
+    return out.set(tl.x, tl.y, tl.z).add(_b);
   }
 
   /** Throw from a rider (ammo already spent). */
@@ -92,13 +113,9 @@ export class Throwables {
     const h = v.telemetry.heading;
     const vel = new THREE.Vector3(lv.x, lv.y, lv.z);
     if (target) {
-      // Lead the target a little and lob it so it arrives in about THROW.flight seconds.
-      target.rider.vehicle.renderPosition(_b);
-      const tl = target.rider.vehicle.body.linvel();
-      _b.x += tl.x * THROW.flight;
-      _b.z += tl.z * THROW.flight;
-      _b.y += 1;
-      vel.set((_b.x - pos.x) / THROW.flight, (_b.y - pos.y) / THROW.flight + 0.5 * THROW.gravity * THROW.flight, (_b.z - pos.z) / THROW.flight);
+      // Straight at them, moving with them: a little loft for the look.
+      this.chaseVelocity(target, pos, vel);
+      vel.y += 3;
     } else vel.add(_f.set(Math.sin(h), 0.35, Math.cos(h)).multiplyScalar(THROW.speed));
     const stone = Math.random() < 0.4;
     const mesh = new THREE.Mesh(stone ? this.stoneGeo : this.bottleGeo, stone ? this.rock : this.glass);
@@ -112,22 +129,19 @@ export class Throwables {
     for (let i = this.flying.length - 1; i >= 0; i--) {
       const p = this.flying[i]!;
       p.t += dt;
-      // Homing: steer the velocity toward where the target is now.
-      if (p.target && p.target.rider.state === 'riding' && !p.target.rider.ghost) {
-        p.target.rider.vehicle.renderPosition(_b);
+      // Homing: chase in the target's moving frame (its velocity + a closing speed), so a throw
+      // at a rider doing 40 m/s still catches them.
+      const tracking = p.target && p.target.rider.state === 'riding' && !p.target.rider.ghost;
+      if (tracking) {
+        p.target!.rider.vehicle.renderPosition(_b);
         _b.y += 1;
-        _b.sub(p.pos);
-        const d = _b.length();
-        if (d < THROW.hitRadius) {
-          this.hit(p, p.target);
+        if (_b.distanceTo(p.pos) < THROW.hitRadius) {
+          this.hit(p, p.target!);
           this.flying.splice(i, 1);
           continue;
         }
-        const speed = p.vel.length();
-        _b.setLength(speed);
-        p.vel.lerp(_b, Math.min(1, THROW.homing * dt));
-      }
-      p.vel.y -= THROW.gravity * dt;
+        p.vel.lerp(this.chaseVelocity(p.target!, p.pos, _f), Math.min(1, THROW.homing * dt));
+      } else p.vel.y -= THROW.gravity * dt;
       p.pos.addScaledVector(p.vel, dt);
       p.mesh.position.copy(p.pos);
       p.mesh.rotation.x += p.spin.x * dt;

@@ -51,9 +51,12 @@ export const THROW = {
   /** A bottle pickup gives this many; never carry more. */
   perPickup: 3,
   max: 3,
-  /** Targets: riders ahead within this range (m) and cone half-angle (rad). */
+  /** Auto-aim: the nearest rider within closeRange in any direction; else the nearest ahead within range and the cone (rad). */
+  closeRange: 25,
   range: 40,
   cone: 0.8,
+  /** Closing speed relative to the target (m/s): the throw matches the target's velocity plus this. */
+  chase: 26,
   /** Lob time to the target (s), speed of an untargeted throw (m/s), gravity on the throw. */
   flight: 0.7,
   speed: 22,
@@ -65,7 +68,9 @@ export const THROW = {
   /** Minimum seconds between one rider's throws. */
   cooldown: 1,
   /** Bots: chance per second to throw when a target is lined up (scaled by skill / difficulty). */
-  botRate: 0.6,
+  botRate: 0.3,
+  /** Bots wait at least this long between their own throws (s). */
+  botCooldown: 6,
 };
 
 /** Pickups along the trail and the buffs they give. */
