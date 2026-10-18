@@ -38,6 +38,7 @@ export const CAMERA_PROFILES: Record<VehicleId, CameraProfile> = {
   mountainBike: bike,
   motorbike: { ...bike, distance: 4.4, height: 1.45 },
   car: { ...bike, distance: 6.2, height: 2.1, lookHeight: 1.3, fovBase: 68, distancePerSpeed: 1.2 },
+  roadster: { ...bike, distance: 5.6, height: 1.7, lookHeight: 1.1, fovBase: 70, distancePerSpeed: 1.1 },
   flyingCar: { ...bike, distance: 6.8, height: 2.4, lookHeight: 1.4, fovBase: 68, distancePerSpeed: 1.3 },
   snowboard: { ...bike, distance: 3.9, height: 1.35, lookHeight: 1.0 },
   onFoot: { ...bike, distance: 3.4, height: 1.4, lookHeight: 1.3, lookAhead: 6, fovBase: 66, fovPerSpeed: 8 },

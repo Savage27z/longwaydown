@@ -1,8 +1,8 @@
 import type { SurfaceId } from './surfaces';
 
-export type VehicleId = 'bicycle' | 'mountainBike' | 'motorbike' | 'car' | 'flyingCar' | 'snowboard' | 'skis' | 'wingsuit' | 'onFoot';
+export type VehicleId = 'bicycle' | 'mountainBike' | 'motorbike' | 'car' | 'roadster' | 'flyingCar' | 'snowboard' | 'skis' | 'wingsuit' | 'onFoot';
 /** Everything the vehicle wheel offers, in slot order (on foot is only used for the race start). */
-export const VEHICLE_IDS: VehicleId[] = ['bicycle', 'mountainBike', 'motorbike', 'car', 'flyingCar', 'snowboard', 'skis', 'wingsuit'];
+export const VEHICLE_IDS: VehicleId[] = ['bicycle', 'mountainBike', 'motorbike', 'car', 'roadster', 'flyingCar', 'snowboard', 'skis', 'wingsuit'];
 /** Ground vehicle used after a wingsuit landing until the rider has picked one themselves. */
 export const DEFAULT_GROUND_VEHICLE: VehicleId = 'mountainBike';
 
@@ -239,6 +239,40 @@ export const VEHICLES: Record<VehicleId, VehicleStats> = {
     crashAngleDeg: 80,
     crashDecel: 30,
     surface: { powder: { rolling: 0.6, drag: 0.5 }, rock: { grip: 1.1 }, mud: { grip: 1.1, drag: 0.6 } },
+  },
+  // Unbranded thruster hypercar: grippy sports car; Space fires cold-gas thrusters (jump, hover, cushion).
+  roadster: {
+    ...base,
+    name: 'Volt Roadster',
+    mass: 1100,
+    topSpeed: 42,
+    accel: 15,
+    propulsionMaxSpeed: 42,
+    brake: 16,
+    aero: 0.0028,
+    tuckAero: 1,
+    grip: 2.9,
+    skidDrag: 0.9,
+    turnRateLow: 2.6,
+    turnRateHigh: 1.3,
+    turnSpeedRef: 32,
+    airPitchRate: 2.2,
+    airSpinRate: 2.4,
+    airSteer: 0.5,
+    jumpSpeed: 6.5,
+    // Shift: the rear diffuser thrusters.
+    boostAccel: 16,
+    boostTopSpeed: 50,
+    rideHeight: 0.62,
+    travel: 0.28,
+    spring: 120,
+    damping: 13,
+    colliderRadius: 0.5,
+    wheelbase: 2.64,
+    crashImpact: 32,
+    crashAngleDeg: 78,
+    crashDecel: 30,
+    surface: { powder: { rolling: 0.8, drag: 0.6 }, mud: { grip: 0.9, drag: 0.6 } },
   },
   flyingCar: {
     ...base,

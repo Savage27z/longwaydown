@@ -114,6 +114,8 @@ export abstract class ArcadeVehicle extends Vehicle {
   /** Cars: brake from (near) standstill engages reverse, up to reverseMax (m/s). */
   protected canReverse = false;
   protected reverseMax = 7;
+  /** Scales how hard the springs pull the vehicle down over crests (the roadster's suction fans). */
+  protected crestStickMul = 1;
 
   fixedUpdate(dt: number, input: VehicleInput, ctx: VehicleContext): void {
     const s = this.stats;
@@ -334,7 +336,7 @@ export abstract class ArcadeVehicle extends Vehicle {
     let springA = s.spring * comp - s.damping * vn;
     if (comp < 0) {
       const stick = lerp(RIDING.crestStick, RIDING.crestStickFast, clamp(spd / RIDING.crestStickSpeed, 0, 1));
-      springA = vn > 1.5 ? 0 : Math.max(springA * 0.35, -stick);
+      springA = vn > 1.5 ? 0 : Math.max(springA * 0.35, -stick * this.crestStickMul);
     }
     vn += springA * dt;
     this.telemetry.compression = clamp(comp / s.travel, 0, 1);

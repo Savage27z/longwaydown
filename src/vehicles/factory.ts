@@ -1,6 +1,7 @@
 import type { VehicleId } from '../config/vehicles';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { Bicycle } from './Bicycle';
+import { Roadster } from './Roadster';
 import { Buggy } from './Buggy';
 import { FlyingCar } from './FlyingCar';
 import { Motorbike } from './Motorbike';
@@ -22,6 +23,8 @@ export function createVehicle(id: VehicleId, physics: PhysicsWorld, state: Trans
       return new Motorbike(physics, state);
     case 'car':
       return new Buggy(physics, state);
+    case 'roadster':
+      return new Roadster(physics, state);
     case 'flyingCar':
       return new FlyingCar(physics, state);
     case 'snowboard':

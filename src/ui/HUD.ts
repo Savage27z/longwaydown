@@ -36,6 +36,7 @@ export class HUD {
   private boostWrap: HTMLDivElement;
   private flightBar: HTMLDivElement;
   private flightWrap: HTMLDivElement;
+  private flightLabel: HTMLDivElement;
   private countdown: HTMLDivElement;
   private banner: HTMLDivElement;
   readonly buffs: HTMLDivElement;
@@ -81,6 +82,7 @@ export class HUD {
     this.boostWrap = q('.hud-meter.boost');
     this.flightBar = q('.hud-meter.flight .fill');
     this.flightWrap = q('.hud-meter.flight');
+    this.flightLabel = q('.flight-label');
     this.countdown = q('.hud-countdown');
     this.banner = q('.hud-banner');
     this.buffs = q('.hud-buffs');
@@ -200,8 +202,11 @@ export class HUD {
     if (showBoost) this.boostBar.style.width = `${Math.round(v.boost * 100)}%`;
     const showFlight = v.flight >= 0;
     this.flightWrap.style.display = showFlight ? '' : 'none';
-    (this.el.querySelector('.flight-label') as HTMLElement).style.display = showFlight ? '' : 'none';
-    if (showFlight) this.flightBar.style.width = `${Math.round(v.flight * 100)}%`;
+    this.flightLabel.style.display = showFlight ? '' : 'none';
+    if (showFlight) {
+      this.flightBar.style.width = `${Math.round(v.flight * 100)}%`;
+      this.flightLabel.textContent = v.vehicle === 'roadster' ? 'THRUSTERS' : 'FLIGHT';
+    }
     this.drawStrip(v.progressS, v.checkpointsReached);
 
     this.subTimer -= dt;

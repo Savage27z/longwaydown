@@ -117,6 +117,7 @@ export const BODY_MOTION: Record<VehicleId, BodyMotion> = {
   mountainBike: { ...bike, maxDown: 0.25, buzz: 60 },
   motorbike: { ...bike, gain: [0.5, 0.75, 0.7], maxDown: 0.28, maxFore: 0.16, airTuck: 0.1, airBack: 0.15, buzz: 80, pop: 1.1 },
   car: seated,
+  roadster: { ...seated, buzz: 40 },
   flyingCar: { ...seated, buzz: 10, freq: 1.2 },
   snowboard: snow,
   onFoot: { ...bike, gain: [0.3, 0.4, 0.3], maxDown: 0.12, hipsShare: 1, airTuck: 0.08, airReach: 0.06, airBack: 0, airArms: 0.4, pop: 0.6, buzz: 10, speedCrouch: 0 },

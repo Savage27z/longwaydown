@@ -9,6 +9,8 @@ export const VEHICLE_ICONS: Record<VehicleId, string> = {
   motorbike:
     '<svg viewBox="0 0 24 24"><circle cx="5" cy="16" r="3.5"/><circle cx="19" cy="16" r="3.5"/><path d="M5 16h5l3-5h4l2 5M8 11h5M15 7h3l1 4"/></svg>',
   car: '<svg viewBox="0 0 24 24"><path d="M3 15v-3l2-4h11l3 4h2v3"/><circle cx="7" cy="16" r="2.5"/><circle cx="17" cy="16" r="2.5"/><path d="M7 8l1 4h8"/></svg>',
+  roadster:
+    '<svg viewBox="0 0 24 24"><path d="M2 15c0-2 1-3 3-3.5L9 10h6l4 1.5c2 .5 3 1.5 3 3.5"/><circle cx="7" cy="15.5" r="2.2"/><circle cx="17" cy="15.5" r="2.2"/><path d="M10 10.5l1.5 1.5h4M9.2 15.5h5.6M3 13h3M18 12.5h3"/></svg>',
   flyingCar:
     '<svg viewBox="0 0 24 24"><path d="M3 13c2-4 5-5 9-5s7 1 9 5M3 13h18M6 13l-2 4h4M18 13l2 4h-4"/><path d="M9 8l1-3h4l1 3"/></svg>',
   snowboard: '<svg viewBox="0 0 24 24"><rect x="2" y="9" width="20" height="6" rx="3" transform="rotate(-20 12 12)"/><path d="M9 10.5l1 2M14 8.7l1 2"/></svg>',

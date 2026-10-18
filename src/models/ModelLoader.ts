@@ -4,6 +4,7 @@ import { buildBicycle } from './procedural/bicycle';
 import { buildMotorbike } from './procedural/motorbike';
 import { buildBuggy } from './procedural/buggy';
 import { buildHoverCar } from './procedural/flyers';
+import { buildRoadster } from './procedural/roadster';
 import { buildSkis, buildSnowboard } from './procedural/boards';
 import { BONES, buildCharacterRig, MATERIAL_SLOTS, type BoneName, type CharacterRig, type MaterialSlot } from './procedural/character';
 
@@ -27,6 +28,7 @@ const builders: Partial<Record<ModelId, Builder>> = {
   'vehicle:mountainBike': (o) => buildBicycle({ mtb: true, primary: o.primary, secondary: o.secondary }),
   'vehicle:motorbike': (o) => buildMotorbike(o.primary, o.secondary),
   'vehicle:car': (o) => buildBuggy(o.primary, o.secondary),
+  'vehicle:roadster': (o) => buildRoadster(o.primary, o.secondary),
   'vehicle:flyingCar': (o) => buildHoverCar(o.primary, o.secondary),
   'vehicle:snowboard': (o) => buildSnowboard(o.primary, o.secondary),
   'vehicle:skis': (o) => buildSkis(o.primary, o.secondary),

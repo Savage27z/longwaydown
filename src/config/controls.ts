@@ -25,7 +25,7 @@ export const ACTION_LABELS: Record<Action, string> = {
   brake: 'Brake / Reverse · Pull up (flying)',
   steerLeft: 'Steer Left',
   steerRight: 'Steer Right',
-  jump: 'Jump · Handbrake (buggy) · Lift-off',
+  jump: 'Jump · Handbrake (buggy) · Thrusters (roadster) · Lift-off',
   boost: 'Boost · Thrust (flying)',
   trick: 'Trick / Grab',
   pitchForward: 'Air Pitch Forward',
