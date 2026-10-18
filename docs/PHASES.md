@@ -665,3 +665,12 @@ Peer-to-peer over WebRTC (`peerjs`). The free public PeerJS broker only does the
   - Other riders' trick spins aren't mirrored.
   - Strict networks (some school or office wifi) can block WebRTC; there's no relay fallback.
   - If the host leaves, the room closes.
+
+### Online fixes
+- **Races stuck on the grid:** the host's 25 s "start anyway" timer could fire before anyone had loaded the race, so the go was lost, and it also wiped readiness. The go is now kept for the race and replayed for any machine that finishes loading late, and it's sent only once.
+- **Joining across networks failed** ("not answering"): direct WebRTC needs the two networks to allow it, and PeerJS's free TURN relays are unreliable.
+  - **Fallback relay** (`net/Relay.ts`): a minimal MQTT 3.1.1 client over secure WebSocket to free public brokers (EMQX, then HiveMQ, then Mosquitto).
+  - **Host:** listens on both direct links and the relay.
+  - **Joiner:** tries a direct link for 6 s, then switches to the relay.
+  - **Relay links:** the joiner sends pings, the host drops anyone silent for 15 s, and both sides say goodbye on leaving.
+  - `?relay` in the URL forces the relay path.

@@ -70,6 +70,9 @@ export type NetMsg =
   | { t: 'fin'; id: string; time: number }
   | { t: 'ko'; target: string; from: string }
   | { t: 'lobbyReturn' }
-  | { t: 'full' };
+  | { t: 'full' }
+  /** Relay keep-alive, and a goodbye (room closed / player left). */
+  | { t: 'ping' }
+  | { t: 'bye' };
 
 export const PLAYER_COLORS = ['#ff5a1f', '#3ec8ff', '#4ade80', '#ffd23f', '#b06cff', '#ff4d6d', '#f4f8ff', '#c9a24a'];
