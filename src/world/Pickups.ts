@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { MAPS, type MapId } from '../config/maps';
 import { PICKUP_STYLE, PICKUPS, type PickupKind } from '../config/stunts';
 import type { PlayerController } from '../player/PlayerController';
 import { makeRng } from '../utils/rng';
@@ -32,8 +33,8 @@ export class Pickups {
   readonly list: Pickup[] = [];
   private collected = new Map<string, Set<number>>();
   private parts = new Map<PickupKind, { orb: THREE.Material; ring: THREE.Material; icon: THREE.SpriteMaterial }>();
-  private orbGeo = new THREE.SphereGeometry(0.42, 16, 12);
-  private ringGeo = new THREE.TorusGeometry(0.78, 0.06, 6, 28);
+  private orbGeo = new THREE.SphereGeometry(0.6, 18, 14);
+  private ringGeo = new THREE.TorusGeometry(1.05, 0.08, 6, 32);
   private time = 0;
 
   constructor(
@@ -49,14 +50,26 @@ export class Pickups {
       for (const [k, w] of kinds) if ((r -= w) <= 0) return k;
       return 'boost';
     };
-    for (let s = PICKUPS.firstS; s < c.length - PICKUPS.endGap; s += PICKUPS.spacing * (0.8 + rng() * 0.4)) {
-      if (c.features.some((f) => Math.abs(f.s - s) < PICKUPS.featureClear)) continue;
-      const lat = (rng() - 0.5) * 6;
-      const pos = new THREE.Vector3();
-      world.courseAt(s, lat, pos);
-      pos.y += 1.3;
-      // Every third pickup is a bottle crate, so everyone gets ammo early and often.
-      this.list.push({ kind: this.list.length % 3 === 1 ? 'bottle' : pick(), s, lat, pos, obj: null, phase: rng() * Math.PI * 2, taken: false });
+    // Start where riders are back on the ground: after the wingsuit glide off the summit.
+    const map = MAPS[world.mapId as MapId];
+    const landed = c.sectionStart[Math.min(c.sectionStart.length - 1, map.launch.sections - 1)] ?? 0;
+    let slot = 0;
+    for (let s = Math.max(PICKUPS.firstS, landed + 200); s < c.length - PICKUPS.endGap; s += PICKUPS.spacing * (0.85 + rng() * 0.3)) {
+      // Jump zones: push the pair past the landing instead of dropping it.
+      const f = c.features.find((x) => Math.abs(x.s - s) < PICKUPS.featureClear);
+      if (f) s = f.s + PICKUPS.featureClear;
+      // A pair across the trail, one each side, so you choose your line; every third pair
+      // carries a bottle crate so everyone has ammo early and often.
+      const kindsHere: PickupKind[] = [slot % 3 === 1 ? 'bottle' : pick(), pick()];
+      if (rng() < 0.5) kindsHere.reverse();
+      [-1, 1].forEach((side, k) => {
+        const lat = side * PICKUPS.pairLat + (rng() - 0.5) * 0.8;
+        const pos = new THREE.Vector3();
+        world.courseAt(s, lat, pos);
+        pos.y += 1.4;
+        this.list.push({ kind: kindsHere[k]!, s, lat, pos, obj: null, phase: rng() * Math.PI * 2, taken: false });
+      });
+      slot++;
     }
   }
 
@@ -101,7 +114,7 @@ export class Pickups {
     ring.name = 'ring';
     g.add(ring);
     const icon = new THREE.Sprite(m.icon);
-    icon.scale.setScalar(0.7);
+    icon.scale.setScalar(0.95);
     icon.renderOrder = 3;
     g.add(icon);
     g.position.copy(p.pos);

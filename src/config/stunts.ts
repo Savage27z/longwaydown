@@ -70,13 +70,16 @@ export const THROW = {
 
 /** Pickups along the trail and the buffs they give. */
 export const PICKUPS = {
-  spacing: 320,
+  /** A pair across the trail (one each side) about this often (m). */
+  spacing: 170,
+  /** Lateral offset of the pair from the line (m). */
+  pairLat: 2.3,
   /** Skip the start run-up and the finish straight (m). */
   firstS: 400,
   endGap: 250,
   /** Keep clear of jump lips (m along the course). */
   featureClear: 35,
-  radius: 2.6,
+  radius: 3,
   /** Kinds and their weights. */
   weights: { boost: 5, freeze: 1, grip: 1.5, speed: 1.5, lowGravity: 1, shield: 1, bottle: 1 } as Record<PickupKind, number>,
   boostFill: 0.5,

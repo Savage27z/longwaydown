@@ -528,3 +528,7 @@ Every rider, you and the bots, has a `RiderPerks` (`gameplay/Perks.ts`): a boost
 - **HUD:** an ammo counter (bottles plus "F to throw"), and pop-ups for "HIT Mila!", "Knocked off by Kai" and shield blocks.
 - **Results:** knockouts are counted.
 - **Headless 300 s race:** 24 throws, 14 hits (58% with homing), and you were knocked off twice.
+- **Pickup layout fix** ("barely on the road"):
+  - The first pickups used to sit in the wingsuit section and were 300–900 m apart after it, because jump zones were dropped.
+  - Now pickups come as a pair across the trail (one each side, 2.3 m off the line) about every 170 m, starting 200 m after the glide lands. Pairs in jump zones are pushed past the jump instead of dropped.
+  - That's 262 pickups on Green Ridge, up from about 80. They're bigger (0.6 m orb, 1 m ring) with a 3 m grab radius.
